@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="705" height="130" viewBox="0 0 705 130"
+     role="img"
+     aria-label="СТМ — Стройтехмашины">
+  <defs>
+    <linearGradient id="stmWaveLight" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#B9E5F5"/>
+      <stop offset="100%" stop-color="#55BDE2"/>
+    </linearGradient>
+    <linearGradient id="stmWaveMid" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#55BDE2"/>
+      <stop offset="100%" stop-color="#168DB9"/>
+    </linearGradient>
+    <linearGradient id="stmWaveDeep" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#168DB9"/>
+      <stop offset="100%" stop-color="#142F46"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Волновой знак (пути из logo2/3, палитра logo7) -->
+  <g transform="translate(5, 65)">
+    <path d="M0 0
+             C25 0 50 -10 75 0
+             S125 10 150 0
+             S200 -10 225 0
+             S275 10 300 0"
+          fill="url(#stmWaveLight)"
+          transform="translate(0, -34)"/>
+    <path d="M0 0
+             C25 0 50 -15 75 0
+             S125 15 150 0
+             S200 -15 225 0
+             S275 15 300 0"
+          fill="url(#stmWaveMid)"
+          transform="translate(0, 0)"/>
+    <path d="M0 0
+             C25 0 50 -12 75 0
+             S125 12 150 0
+             S200 -12 225 0
+             S275 12 300 0"
+          fill="url(#stmWaveDeep)"
+          opacity="0.85"
+          transform="translate(0, 34)"/>
+  </g>
+
+  <!-- STM — шрифт как в logo4/7, компактный лок-ап для шапки интерфейса -->
+  <text x="340" y="119"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="150"
+        font-weight="900"
+        letter-spacing="-7"
+        fill="#142F46">STM</text>
+</svg>

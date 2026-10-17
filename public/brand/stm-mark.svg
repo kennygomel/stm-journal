@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="1.6 20.1 306.8 91.3"
+     role="img" aria-label="СТМ — волновой знак">
+  <defs>
+    <linearGradient id="stmWaveLight" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#B9E5F5"/>
+      <stop offset="100%" stop-color="#55BDE2"/>
+    </linearGradient>
+    <linearGradient id="stmWaveMid" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#55BDE2"/>
+      <stop offset="100%" stop-color="#168DB9"/>
+    </linearGradient>
+    <linearGradient id="stmWaveDeep" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#168DB9"/>
+      <stop offset="100%" stop-color="#142F46"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(5, 65)">
+    <path d="M0 0
+             C25 0 50 -10 75 0
+             S125 10 150 0
+             S200 -10 225 0
+             S275 10 300 0"
+          fill="url(#stmWaveLight)"
+          transform="translate(0, -34)"/>
+    <path d="M0 0
+             C25 0 50 -15 75 0
+             S125 15 150 0
+             S200 -15 225 0
+             S275 15 300 0"
+          fill="url(#stmWaveMid)"
+          transform="translate(0, 0)"/>
+    <path d="M0 0
+             C25 0 50 -12 75 0
+             S125 12 150 0
+             S200 -12 225 0
+             S275 12 300 0"
+          fill="url(#stmWaveDeep)"
+          opacity="0.85"
+          transform="translate(0, 34)"/>
+  </g>
+</svg>
