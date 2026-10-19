@@ -3,7 +3,7 @@
 import { db, EndpointError } from 'sdk';
 import { and, asc, eq, gte, inArray, like, lte, sql } from 'sdk/db';
 import { customers, trips, users as usersTable } from '../schema.js';
-import { calcTrip, daysBonusFor, getSettings, monthOf, ratesSnapshot, resolveRates } from './calc.js';
+import { DAYS_BONUS_MIN, calcTrip, daysBonusFor, getSettings, monthOf, ratesSnapshot, resolveRates } from './calc.js';
 import { displayName, isIsoDate, parseInteger } from './format.js';
 
 /** Сериализация записи для Mini App (деньги — рубли). */
@@ -134,8 +134,7 @@ export async function createTrip(user, input) {
   };
   const inserted = await db.insert(trips).values(values).returning();
   // Доплата за дни месяца зависит от всех записей месяца — переставляем её.
-  const global = await getSettings();
-  await syncMonthDaysBonus(user.id, monthOf(parsed.date), global);
+  await syncMonthDaysBonus(user.id, monthOf(parsed.date));
   const fresh = await db.select().from(trips).where(eq(trips.id, inserted[0].id)).get();
   return toTripDto(fresh || inserted[0]);
 }
@@ -169,9 +168,8 @@ export async function updateTrip(user, input) {
 
   // Месяц мог смениться при правке даты — переставляем доплату за дни
   // и в старом, и в новом месяце.
-  const global = await getSettings();
   const months = [...new Set([monthOf(parsed.date), monthOf(existing.tripDate)].filter(Boolean))];
-  for (const month of months) await syncMonthDaysBonus(user.id, month, global);
+  for (const month of months) await syncMonthDaysBonus(user.id, month);
 
   const fresh = await db.select().from(trips).where(eq(trips.id, id)).get();
   return toTripDto(fresh || rows[0]);
@@ -191,8 +189,7 @@ export async function deleteTrip(user, tripId) {
   await db.delete(trips).where(and(eq(trips.id, id), eq(trips.userId, user.id))).run();
 
   // Месяц мог лишиться последней записи — доплату за дни переставляем.
-  const global = await getSettings();
-  await syncMonthDaysBonus(user.id, monthOf(existing.tripDate), global);
+  await syncMonthDaysBonus(user.id, monthOf(existing.tripDate));
   return { id };
 }
 
@@ -203,7 +200,6 @@ export async function deleteTrip(user, tripId) {
  */
 export async function report(userId, range) {
   const rows = await listTrips(userId, range);
-  const global = await getSettings();
   const byCustomer = new Map();
   let income = 0;
   let daysBonus = 0;
@@ -253,8 +249,7 @@ export async function report(userId, range) {
       total: income + daysBonus,
       daysBonus,
       workingDays,
-      daysMin: global.daysMin,
-      daysRate: global.daysRate,
+      daysMin: DAYS_BONUS_MIN,
       points,
       distance,
       hours,
@@ -321,7 +316,7 @@ export async function workingDaysInMonth(userId, month) {
  *
  * @returns {Promise<number>} сумма проставленной доплаты (0, если лимит не набран)
  */
-export async function syncMonthDaysBonus(userId, month, global) {
+export async function syncMonthDaysBonus(userId, month) {
   const rows = await db
     .select()
     .from(trips)
@@ -331,7 +326,7 @@ export async function syncMonthDaysBonus(userId, month, global) {
   if (!rows.length) return 0;
 
   const days = new Set(rows.map((row) => row.tripDate)).size;
-  const bonus = daysBonusFor(days, global);
+  const bonus = daysBonusFor(days);
   const lastId = rows[rows.length - 1].id;
 
   await Promise.all(
@@ -349,12 +344,12 @@ export async function syncMonthDaysBonus(userId, month, global) {
 }
 
 /** Пересчитывает доплату за дни во всех месяцах, которые пересекает диапазон. */
-async function syncDaysBonusInRange(userId, range, global) {
+async function syncDaysBonusInRange(userId, range) {
   const clauses = [eq(trips.userId, userId), ...inRange(range)];
   const rows = await db.select({ date: trips.tripDate }).from(trips).where(and(...clauses)).all();
   const months = [...new Set(rows.map((row) => monthOf(row.tripDate)).filter(Boolean))];
   let total = 0;
-  for (const month of months) total += await syncMonthDaysBonus(userId, month, global);
+  for (const month of months) total += await syncMonthDaysBonus(userId, month);
   return total;
 }
 
@@ -460,7 +455,7 @@ export async function recalculateTrips(range, { userId = null, apply = false } =
   // Доход не включает доплату за дни — её ведём отдельно; если её проставили
   // или сняли, суммы записей поменялись и это нужно показать.
   if (apply) {
-    for (const bucket of users.keys()) await syncDaysBonusInRange(bucket, range, global);
+    for (const bucket of users.keys()) await syncDaysBonusInRange(bucket, range);
   }
 
   return {
@@ -495,11 +490,7 @@ export async function recalculateTrips(range, { userId = null, apply = false } =
  * владельцу, но дашборду они не нужны.
  */
 export async function dashboardStats(range) {
-  const [rows, users, global] = await Promise.all([
-    listTrips(null, range),
-    db.select().from(usersTable).all(),
-    getSettings(),
-  ]);
+  const [rows, users] = await Promise.all([listTrips(null, range), db.select().from(usersTable).all()]);
 
   const byUser = new Map();
   const byDate = new Set();
@@ -543,7 +534,7 @@ export async function dashboardStats(range) {
       daysBonus,
       total: income + daysBonus,
       avgIncome: rows.length ? Math.round(income / rows.length) : 0,
-      daysMin: global.daysMin,
+      daysMin: DAYS_BONUS_MIN,
     },
     journals: [...byUser.values()]
       .map((bucket) => {

@@ -241,8 +241,8 @@ const telegram = {
   },
 };
 
-const RATES = { baseRate: 250000, pointsFree: 12, pointRate: 200, kmFree: 300, kmRate: 20, hoursFree: 8, hourRate: 2000, daysMin: 25, daysRate: 2000 };
-const GLOBAL = { baseRate: 12000, pointsFree: 12, pointRate: 200, kmFree: 300, kmRate: 20, hoursFree: 8, hourRate: 2000, daysMin: 25, daysRate: 2000 };
+const RATES = { baseRate: 250000, pointsFree: 12, pointRate: 200, kmFree: 300, kmRate: 20, hoursFree: 8, hourRate: 2000, daysMin: 23, daysBonusTable: { 23: 2500, 24: 5000, 25: 10000, 26: 15000, 27: 20000, 28: 25000, 29: 30000, 30: 40000, 31: 50000 } };
+const GLOBAL = { baseRate: 12000, pointsFree: 12, pointRate: 200, kmFree: 300, kmRate: 20, hoursFree: 8, hourRate: 2000, daysMin: 23, daysBonusTable: { 23: 2500, 24: 5000, 25: 10000, 26: 15000, 27: 20000, 28: 25000, 29: 30000, 30: 40000, 31: 50000 } };
 
 const store = {
   customers: [
@@ -251,7 +251,7 @@ const store = {
   ],
   // 15 точек, 500 км, 14 часов по ставкам СТМ
   trips: [
-    { id: 1, date: '2026-10-05', customerId: 1, customerName: 'СТМ-Логистика', points: 15, distance: 500, hours: 14, income: 256600, daysBonus: 2000, rates: RATES },
+    { id: 1, date: '2026-10-05', customerId: 1, customerName: 'СТМ-Логистика', points: 15, distance: 500, hours: 14, income: 256600, daysBonus: 15000, rates: RATES },
   ],
   settings: GLOBAL,
   users: [{ id: 4, tgId: 323173181, name: 'Ignat', username: 'owner', status: 'approved', isAdmin: true, isOwner: true, createdAt: '2026-10-01T00:00:00.000Z' }],
@@ -296,11 +296,10 @@ const handlers = {
     totals: {
       trips: 1,
       income: 256600,
-      total: 258600,
-      daysBonus: 2000,
+      total: 271600,
+      daysBonus: 15000,
       workingDays: 26,
-      daysMin: 25,
-      daysRate: 2000,
+      daysMin: 23,
       points: 15,
       distance: 500,
       hours: 14,
@@ -345,8 +344,6 @@ const handlers = {
         kmRate: rub(raw.kmRate),
         hoursFree: Number(raw.hoursFree),
         hourRate: rub(raw.hourRate),
-        daysMin: Number(raw.daysMin),
-        daysRate: rub(raw.daysRate),
       };
       lastRatePayload = raw;
     }
@@ -356,7 +353,7 @@ const handlers = {
   adminStats: async () => ({
     period: { from: '2026-10-01', to: '2026-10-15' },
     users: { total: 7, approved: 5, pending: 1, denied: 1, admins: 2 },
-    trips: { count: 48, journals: 3, workingDays: 12, income: 480000, daysBonus: 6000, total: 486000, avgIncome: 10000, daysMin: 25 },
+    trips: { count: 48, journals: 3, workingDays: 26, income: 480000, daysBonus: 15000, total: 495000, avgIncome: 10000, daysMin: 23 },
     journals: [
       { userId: 4, name: 'Торнике', username: 'nik_nagibatel', trips: 20, income: 200000, days: 9, lastDate: '2026-10-14' },
       { userId: 5, name: 'Александрович', username: null, trips: 18, income: 180000, days: 8, lastDate: '2026-10-13' },
@@ -650,7 +647,7 @@ await check('раздел «История» показывает баланс �
   await flush(60);
   const text = allText();
   assert.match(text, /Баланс за период/, 'заголовок баланса');
-  assert.match(text, /2\s?586/, 'сумма баланса с доплатой за дни');
+  assert.match(text, /2\s?716/, 'сумма баланса с доплатой за дни');
   assert.match(text, /По заказчикам/, 'разбивка по заказчикам');
   assert.match(text, /По дням/, 'разбивка по дням');
 
@@ -753,8 +750,27 @@ await check('дни: в истории есть рабочие дни и доп�
   await flush(60);
   const text = appNode().textContent;
   assert.match(text, /дн\./, 'показатель рабочих дней');
-  assert.match(text, /Доплата за дни/, 'пояснение про доплату за дни');
-  assert.match(text, /2\s?586/, 'баланс с доплатой за дни');
+  assert.match(text, /Доплата за дни: 26 дн\./, 'доплата за дни по таблице');
+  assert.match(text, /150/, '26 дней → 150 ₽');
+  assert.match(text, /2\s?716/, 'баланс с доплатой за дни');
+});
+
+await check('тарифы: таблица доплат за дни 23 → 25 ₽ … 31 → 500 ₽', async () => {
+  closeSheets();
+  setHash('#admin/rates');
+  dispatchWindow('hashchange');
+  await flush(80);
+  const text = appNode().textContent;
+  assert.match(text, /Доплата за дни месяца/, 'блок таблицы');
+  assert.match(text, /23 дня/, 'первая строка — 23 дня');
+  assert.match(text, /31 день/, 'последняя строка — 31 день');
+  assert.match(text, /500/, '31 день → 500 ₽');
+  assert.match(text, /Меньше 23 рабочих дней/, 'пояснение про порог');
+  const { readFileSync } = await import('node:fs');
+  const days = readFileSync('src/days.js', 'utf8');
+  for (const kopecks of ['2500', '5000', '10000', '50000']) {
+    assert.ok(days.includes(`${kopecks}`), `значение ${kopecks} в таблице клиента`);
+  }
 });
 
 await check('у каждого показателя сводки есть своя нарисованная иконка', async () => {
@@ -977,12 +993,12 @@ await check('тарифы: подписи со знаком BYN, суммы ух
     `есть поле доплаты за 4 часа (${tariffLabels.join(' | ')})`,
   );
   assert.ok(
-    tariffLabels.some((text) => text.startsWith('Рабочих дней в месяце')),
-    'есть поле рабочих дней',
+    !tariffLabels.some((text) => text.startsWith('Рабочих дней в месяце')),
+    'правки дней из формы убраны',
   );
   assert.ok(
-    tariffLabels.some((text) => text.startsWith('Доплата за дни')),
-    'есть поле доплаты за дни',
+    !tariffLabels.some((text) => text.startsWith('Доплата за дни,')),
+    'доплата за дни больше не поле формы',
   );
   const baseInput = sheet.findAll((node) => node.tagName.toLowerCase() === 'input')[0];
   assert.equal(baseInput.value, '120', 'поле показывает действующую ставку в рублях');

@@ -545,7 +545,7 @@ await test('меньше 25 рабочих дней — доплаты нет', 
   for (const id of created) await endpoints.deleteTrip({ id }, ctxFor(555));
 });
 
-await test('25 рабочих дней в месяце — +20 ₽ ровно один раз', async () => {
+await test('25 рабочих дней в месяце — 100 ₽ ровно один раз', async () => {
   const { customers } = await endpoints.adminCustomers({ action: 'list' }, ctxFor(ADMIN_ID));
   const customer = customers.find((row) => row.name === 'Без тарифа');
 
@@ -560,13 +560,13 @@ await test('25 рабочих дней в месяце — +20 ₽ ровно о
   const trips = await endpoints.listTrips({ from: '2025-08-01', to: '2025-08-31' }, ctxFor(555));
   const bonusTrips = trips.trips.filter((trip) => trip.daysBonus > 0);
   assert.equal(bonusTrips.length, 1, 'доплата стоит ровно у одной записи');
-  assert.equal(bonusTrips[0].daysBonus, 2000, '20 ₽');
+  assert.equal(bonusTrips[0].daysBonus, 10000, '25 дней → 100 ₽ по таблице');
   assert.equal(bonusTrips[0].date, '2025-08-25', 'она у последней записи месяца');
 
   const report = await endpoints.report({ from: '2025-08-01', to: '2025-08-31' }, ctxFor(555));
   assert.equal(report.totals.workingDays, 25);
-  assert.equal(report.totals.daysBonus, 2000);
-  assert.equal(report.totals.total, report.totals.income + 2000, 'баланс учитывает доплату за дни');
+  assert.equal(report.totals.daysBonus, 10000);
+  assert.equal(report.totals.total, report.totals.income + 10000, 'баланс учитывает доплату за дни');
 
   for (const trip of trips.trips) await endpoints.deleteTrip({ id: trip.id }, ctxFor(555));
 });
@@ -591,22 +591,43 @@ await test('вторая запись в тот же день не считае�
 
   const report = await endpoints.report({ from: '2025-07-01', to: '2025-07-31' }, ctxFor(555));
   assert.equal(report.totals.workingDays, 24, '24 разные даты');
-  assert.equal(report.totals.daysBonus, 0, 'до 25 дней доплаты нет');
+  // 24 дня → 50 ₽ по таблице; если бы вторая запись считалась днём, было бы 100 ₽
+  assert.equal(report.totals.daysBonus, 5000, '24 дня → 50 ₽');
 
   for (const id of ids) await endpoints.deleteTrip({ id }, ctxFor(555));
 });
 
-await test('дни настраиваются владельцем', async () => {
+await test('таблица доплат за дни: 23 → 25 ₽ … 31 → 500 ₽', async () => {
+  const { DAYS_BONUS_TABLE, DAYS_BONUS_MIN, daysBonusFor } = await import('../tgcloud/lib/calc.js');
+  assert.equal(DAYS_BONUS_MIN, 23, 'порог — 23 рабочих дня');
+  const expected = { 23: 2500, 24: 5000, 25: 10000, 26: 15000, 27: 20000, 28: 25000, 29: 30000, 30: 40000, 31: 50000 };
+  for (const [days, kopecks] of Object.entries(expected)) {
+    assert.equal(DAYS_BONUS_TABLE[days], kopecks, `${days} дней → ${kopecks / 100} ₽`);
+    assert.equal(daysBonusFor(Number(days)), kopecks, `${days} дней считается`);
+  }
+  for (const days of [0, 1, 12, 22]) assert.equal(daysBonusFor(days), 0, `${days} дней — без доплаты`);
+  assert.equal(daysBonusFor(32), 0, 'больше 31 не бывает');
+});
+
+await test('таблица дней совпадает на клиенте и на сервере', async () => {
+  const server = await import('../tgcloud/lib/calc.js');
+  const client = await import('../src/days.js');
+  assert.equal(client.DAYS_BONUS_MIN, server.DAYS_BONUS_MIN, 'порог совпадает');
+  for (let days = 0; days <= 32; days += 1) {
+    assert.equal(client.daysBonusFor(days), server.daysBonusFor(days), `${days} дней`);
+  }
+});
+
+await test('дни настраиваются владельцем больше не настраиваются', async () => {
+  // лишние поля в запросе игнорируются, таблица остаётся фиксированной
   const saved = await endpoints.adminRates(
     { action: 'save', settings: { baseRate: 120, pointsFree: 12, pointRate: 2, kmFree: 300, kmRate: 0.2, hoursFree: 8, hourRate: 20, daysMin: 20, daysRate: 50 } },
     ctxFor(ADMIN_ID),
   );
-  assert.equal(saved.settings.daysMin, 20);
-  assert.equal(saved.settings.daysRate, 5000, '50 ₽ → 5 000 коп.');
-  await endpoints.adminRates(
-    { action: 'save', settings: { baseRate: 120, pointsFree: 12, pointRate: 2, kmFree: 300, kmRate: 0.2, hoursFree: 8, hourRate: 20, daysMin: 25, daysRate: 20 } },
-    ctxFor(ADMIN_ID),
-  );
+  assert.equal(saved.settings.daysMin, 23, 'порог из таблицы');
+  const row23 = saved.settings.daysBonusTable.find((row) => row.days === 23);
+  assert.equal(row23.kopecks, 2500, 'таблица в DTO');
+  assert.equal(saved.settings.daysBonusTable.length, 9, 'девять строк таблицы');
 });
 
 console.log('\nДашборд админки');

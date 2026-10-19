@@ -45,8 +45,8 @@ export const users = table(
 //   kmFree     — включённый пробег за рейс, км
 //   kmRate     — доплата за каждый километр свыше лимита, коп. (20 коп.)
 //   daysFree?  — нет: доплата за дни считается по календарному месяцу
-//   daysMin    — сколько рабочих дней в месяце даёт доплату (25)
-//   daysRate   — доплата за такой месяц, коп. (20 ₽)
+//   daysMin    — legacy: доплата за дни теперь по таблице, колонка не используется
+//   daysRate   — legacy: см. DAYS_BONUS_TABLE в lib/calc.js
 //   hoursFree  — включённые часы работы за рейс (8)
 //   hourRate   — доплата за каждые полные 4 часа сверх лимита, коп. (20 ₽)
 export const settings = table(
@@ -62,8 +62,8 @@ export const settings = table(
     kmRate: integer('km_rate').notNull().default(20),
     hoursFree: integer('hours_free').notNull().default(8),
     hourRate: integer('hour_rate').notNull().default(2000),
-    daysMin: integer('days_min').notNull().default(25),
-    daysRate: integer('days_rate').notNull().default(2000),
+    daysMin: integer('days_min').notNull().default(25).deprecated('доплата за дни теперь по таблице'),
+    daysRate: integer('days_rate').notNull().default(2000).deprecated('доплата за дни теперь по таблице'),
     updatedAt: integer('updated_at', { mode: 'timestamp' }),
     updatedBy: integer('updated_by'),
   },

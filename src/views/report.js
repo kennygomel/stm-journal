@@ -69,11 +69,10 @@ export function reportView(root) {
               'div',
               { class: 'balance-days' },
               totals.daysBonus
-                ? [
-                    `Доплата за дни: ${fmtNumber(totals.workingDays)} дн. ≥ ${fmtNumber(totals.daysMin)} — `,
-                    ...fmtMoney(totals.daysBonus),
-                  ]
-                : [`Рабочих дней: ${fmtNumber(totals.workingDays)} из ${fmtNumber(totals.daysMin)}`],
+                ? [`Доплата за дни: ${fmtNumber(totals.workingDays)} дн. — `, ...fmtMoney(totals.daysBonus)]
+                : [
+                    `Рабочих дней: ${fmtNumber(totals.workingDays)} — доплата с ${fmtNumber(totals.daysMin ?? 23)} дней`,
+                  ],
             )
           : null,
       ],

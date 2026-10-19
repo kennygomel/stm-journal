@@ -3,7 +3,7 @@
 import { db, EndpointError } from 'sdk';
 import { eq } from 'sdk/db';
 import { settings } from '../schema.js';
-import { DEFAULT_RATES, getSettings } from './calc.js';
+import { DAYS_BONUS_MIN, DAYS_BONUS_TABLE, DEFAULT_RATES, getSettings } from './calc.js';
 import { parseInteger, rublesToKopecks } from './format.js';
 
 /** DTO для Mini App: деньги в копейках, лимиты — целые. */
@@ -17,8 +17,13 @@ export function toSettingsDto(row) {
     kmRate: value.kmRate,
     hoursFree: value.hoursFree,
     hourRate: value.hourRate,
-    daysMin: value.daysMin,
-    daysRate: value.daysRate,
+    // Доплата за дни — фиксированная лестница, а не настройка.
+    // Массив, а не объект: ключи-числа платформа не сериализует в ответ.
+    daysMin: DAYS_BONUS_MIN,
+    daysBonusTable: Object.entries(DAYS_BONUS_TABLE).map(([days, kopecks]) => ({
+      days: Number(days),
+      kopecks,
+    })),
     updatedAt: value.updatedAt || null,
   };
 }
@@ -57,8 +62,6 @@ export async function saveSettings(admin, input) {
     kmRate: parseKopecks(input?.kmRate, 'Доплата за километр'),
     hoursFree: parseLimit(input?.hoursFree, 'Часов в лимите', 10000),
     hourRate: parseKopecks(input?.hourRate, 'Доплата за 4 часа сверх лимита'),
-    daysMin: input?.daysMin === undefined ? current.daysMin : parseLimit(input.daysMin, 'Рабочих дней для доплаты', 31),
-    daysRate: money(input?.daysRate, 'Доплата за дни месяца', current.daysRate),
     updatedAt: new Date(),
     updatedBy: admin.id,
   };

@@ -6,7 +6,8 @@
 //   • за каждую точку свыше 12 за рейс — 2 ₽;
 //   • за каждый километр свыше 300 км за рейс — 20 коп.;
 //   • часы свыше 8 — по 20 ₽ за каждые ПОЛНЫЕ 4 часа сверх лимита
-//     (12 ч → +20 ₽, 16 ч → +40 ₽, 20 ч → +60 ₽; 11 ч → 0, 13 ч → +20 ₽).
+//     (12 ч → +20 ₽, 16 ч → +40 ₽, 20 ч → +60 ₽; 11 ч → 0, 13 ч → +20 ₽);
+//   • дни месяца — лестница: 23 → 25 ₽ … 31 → 500 ₽ (см. DAYS_BONUS_TABLE).
 //
 // Все деньги — в копейках, пробег — в километрах, часы — целые.
 
@@ -22,18 +23,36 @@ export const DEFAULT_RATES = {
   kmRate: 20, // 20 коп. за км свыше лимита
   hoursFree: 8,
   hourRate: 2000, // 20 ₽ за каждые полные 4 часа сверх лимита
-  daysMin: 25, // рабочих дней в месяце для доплаты
-  daysRate: 2000, // 20 ₽ за месяц с достаточным числом дней
 };
 
 /**
- * Доплата за дни: 20 ₽, если в календарном месяце набралось ≥ 25 рабочих дней.
- * Считается по числу РАЗНЫХ дат рейсов, поэтому одна дата — один рабочий день.
+ * Доплата за дни месяца — лестница по числу РАБОЧИХ дней (разных дат рейсов).
+ * Меньше 23 дней — без доплаты. Значения в копейках.
  */
-export function daysBonusFor(dayCount, global) {
-  const min = Number(global?.daysMin ?? DEFAULT_RATES.daysMin);
-  const rate = Number(global?.daysRate ?? DEFAULT_RATES.daysRate);
-  return Number(dayCount) >= min ? rate : 0;
+export const DAYS_BONUS_TABLE = Object.freeze({
+  23: 2500, // 25 ₽
+  24: 5000, // 50 ₽
+  25: 10000, // 100 ₽
+  26: 15000, // 150 ₽
+  27: 20000, // 200 ₽
+  28: 25000, // 250 ₽
+  29: 30000, // 300 ₽
+  30: 40000, // 400 ₽
+  31: 50000, // 500 ₽
+});
+
+/** С какого числа рабочих дней начинается доплата. */
+export const DAYS_BONUS_MIN = 23;
+
+/**
+ * Доплата за дни: сумма по таблице для числа рабочих дней месяца.
+ * Считается по числу РАЗНЫХ дат рейсов, поэтому одна дата — один рабочий день.
+ * @param {number} dayCount
+ * @returns {number} копейки (0, если дней меньше порога)
+ */
+export function daysBonusFor(dayCount) {
+  const days = Math.floor(Number(dayCount) || 0);
+  return DAYS_BONUS_TABLE[days] || 0;
 }
 
 /** Месяц даты «YYYY-MM-DD» → «YYYY-MM». */
@@ -73,8 +92,6 @@ export function resolveRates(customer, global) {
     kmRate: base.kmRate,
     hoursFree: base.hoursFree,
     hourRate: base.hourRate,
-    daysMin: base.daysMin,
-    daysRate: base.daysRate,
   };
 }
 
@@ -129,7 +146,5 @@ export function ratesSnapshot(customerName, rates) {
     kmRate: rates.kmRate,
     hoursFree: rates.hoursFree,
     hourRate: rates.hourRate,
-    daysMin: rates.daysMin,
-    daysRate: rates.daysRate,
   };
 }

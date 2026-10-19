@@ -690,14 +690,6 @@ html[data-theme='dark'] .brand-mark {
   min-width: 0;
 }
 
-.filters {
-  margin-bottom: var(--s2);
-}
-
-.filters .field-grid {
-  margin-top: var(--s2);
-}
-
 /* ---------------------------------------------------------------- кнопки */
 
 .btn {
@@ -830,6 +822,12 @@ html[data-theme='dark'] .brand-mark {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--s3);
+  margin-bottom: var(--s3);
+}
+
+/* Внутри фильтров зазор даёт сам контейнер — иначе отступ удваивается. */
+.filters .field-grid {
+  margin-bottom: 0;
 }
 
 .hint-line {
@@ -1561,6 +1559,11 @@ html[data-theme='dark'] .brand-mark {
   display: flex;
   gap: var(--s2);
   margin-top: var(--s3);
+}
+
+/* Последний блок формы перед кнопками: отступ уже даёт .sheet-actions. */
+.sheet > :nth-last-child(2) {
+  margin-bottom: 0;
 }
 
 .sheet-actions .btn {

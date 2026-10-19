@@ -6,7 +6,8 @@
 
 import { api } from '../api.js';
 import { button, card, el, field, input, sectionTitle, sheet, toast } from '../dom.js';
-import { bynSign, fmtMoney, fmtNumber, intInput, moneyInput } from '../format.js';
+import { bynSign, fmtMoney, fmtNumber, intInput, moneyInput, plural } from '../format.js';
+import { DAYS_BONUS_MIN, daysBonusRows } from '../days.js';
 import { haptic } from '../telegram.js';
 
 /** Поля тарифов: деньги — в рублях, лимиты — целые. */
@@ -18,8 +19,6 @@ function tariffFields(values) {
   const kmRate = input({ type: 'text', inputmode: 'decimal', value: moneyInput(values.kmRate) });
   const hoursFree = input({ type: 'number', inputmode: 'numeric', min: 0, value: values.hoursFree ?? '' });
   const hourRate = input({ type: 'text', inputmode: 'decimal', value: moneyInput(values.hourRate) });
-  const daysMin = input({ type: 'number', inputmode: 'numeric', min: 0, max: 31, value: values.daysMin ?? '' });
-  const daysRate = input({ type: 'text', inputmode: 'decimal', value: moneyInput(values.daysRate) });
 
   const labelWithSign = (text) => el('label', {}, [text, bynSign()]);
 
@@ -37,15 +36,11 @@ function tariffFields(values) {
       field('Часов в лимите', hoursFree),
       el('div', { class: 'field' }, [labelWithSign('За 4 часа сверх лимита, '), hourRate]),
     ]),
-    el('div', { class: 'field-grid' }, [
-      field('Рабочих дней в месяце', daysMin, 'Сколько дней даёт доплату'),
-      el('div', { class: 'field' }, [labelWithSign('Доплата за дни, '), daysRate]),
-    ]),
   ];
 
   return {
     content,
-    nodes: { baseRate, pointsFree, pointRate, kmFree, kmRate, hoursFree, hourRate, daysMin, daysRate },
+    nodes: { baseRate, pointsFree, pointRate, kmFree, kmRate, hoursFree, hourRate },
   };
 }
 
@@ -59,8 +54,6 @@ export function readTariffInputs(nodes) {
     kmRate: String(nodes.kmRate.value).trim(),
     hoursFree: intInput(nodes.hoursFree.value),
     hourRate: String(nodes.hourRate.value).trim(),
-    daysMin: intInput(nodes.daysMin.value),
-    daysRate: String(nodes.daysRate.value).trim(),
   };
 }
 
@@ -86,8 +79,7 @@ export function ratesView(root, ctx) {
         rateRow('Доплата за километр', fmtMoney(settings.kmRate), 'за каждый км сверх лимита'),
         rateRow('Часов в лимите', `${fmtNumber(settings.hoursFree)} ч`, 'включено в базовую ставку'),
         rateRow('За 4 часа сверх лимита', fmtMoney(settings.hourRate), 'за каждые полные 4 часа'),
-        rateRow('Рабочих дней для доплаты', fmtNumber(settings.daysMin), 'в календарном месяце'),
-        rateRow('Доплата за дни месяца', fmtMoney(settings.daysRate), 'если дней не меньше лимита'),
+        rateRow('Доплата за дни', `с ${DAYS_BONUS_MIN} дней`, 'по таблице ниже'),
       ]),
       button('Изменить тарифы', { className: 'btn primary btn-block', onClick: () => openForm(settings) }),
       sectionTitle('Пример'),
@@ -97,6 +89,23 @@ export function ratesView(root, ctx) {
           el('div', { class: 'example-amount' }, fmtMoney(exampleIncome(settings))),
         ]),
       ]),
+      sectionTitle('Доплата за дни месяца'),
+      daysTableCard(),
+      el('div', { class: 'view-hint' }, `Меньше ${DAYS_BONUS_MIN} рабочих дней в календарном месяце — доплаты нет. День считается по разным датам рейсов.`),
+    );
+  }
+
+  /** Таблица «дней → доплата»: фиксированная лестница, правится только в коде. */
+  function daysTableCard() {
+    return card(
+      daysBonusRows().map((row) =>
+        el('div', { class: 'list-row' }, [
+          el('div', {}, [
+            el('div', { text: `${fmtNumber(row.days)} ${plural(row.days, 'день', 'дня', 'дней')}` }),
+          ]),
+          el('div', { class: 'amount' }, fmtMoney(row.kopecks)),
+        ]),
+      ),
     );
   }
 
@@ -108,7 +117,7 @@ export function ratesView(root, ctx) {
       submitLabel: 'Сохранить',
       onSubmit: async () => {
         const values = readTariffInputs(nodes);
-        const money = [values.baseRate, values.pointRate, values.kmRate, values.hourRate, values.daysRate];
+        const money = [values.baseRate, values.pointRate, values.kmRate, values.hourRate];
         if (money.some((value) => value === '')) {
           toast('Заполните все суммы', { error: true });
           return false;

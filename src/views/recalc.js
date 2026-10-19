@@ -169,8 +169,10 @@ export function recalcView(root, ctx) {
 
   root.append(
     el('div', { class: 'view-hint' }, 'Записи хранят тарифы на момент рейса, поэтому изменение тарифов не переписывает прошлое. Этот пересчёт применяет действующие тарифы к выбранному периоду.'),
-    chips,
-    el('div', { class: 'field-grid' }, [inlineField('с', fromInput), inlineField('по', toInput)]),
+    el('div', { class: 'filters' }, [
+      chips,
+      el('div', { class: 'field-grid' }, [inlineField('с', fromInput), inlineField('по', toInput)]),
+    ]),
     runButton,
     result,
   );
