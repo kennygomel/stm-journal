@@ -1,9 +1,10 @@
 // handlers/callback_query.js — кнопки «Одобрить» / «Отклонить» в запросе доступа.
 
 import { api } from 'sdk';
-import { CALLBACK, MINI_APP_URL, USER_STATUS } from '../lib/config.js';
+import { CALLBACK, USER_STATUS } from '../lib/config.js';
 import { displayName, escapeHtml } from '../lib/format.js';
-import { findUser, findUserById, isAdminRow, notifyUser, setUserStatus } from '../lib/auth.js';
+import { findUser, findUserById, isAdminRow } from '../lib/auth.js';
+import { applyStatus } from '../lib/users.js';
 
 /** Разбирает callback_data вида «usr:ok:12» / «usr:no:12». */
 function parseAction(data) {
@@ -65,17 +66,22 @@ export default async function (query, ctx) {
     return;
   }
 
-  await setUserStatus(target.id, parsed.status, admin.id);
+  // Решение применяет lib/users.js: уведомление пользователю + удаление
+  // заявки и всех записей при отказе.
+  const result = await applyStatus(admin, target, parsed.status);
 
   // Обновляем сообщение-запрос: видно вердикт и кто его принял.
   // Кнопки убираем — решение уже принято, нажимать больше нечего.
   if (chatId && messageId) {
     const updated = { ...target, status: parsed.status };
+    const text = result?.deleted
+      ? `${verdictLine(admin, updated, parsed.status)}\n\n🗑 Заявка и все записи удалены.`
+      : verdictLine(admin, updated, parsed.status);
     await api
       .editMessageText({
         chat_id: chatId,
         message_id: messageId,
-        text: verdictLine(admin, updated, parsed.status),
+        text,
         parse_mode: 'HTML',
         reply_markup: { inline_keyboard: [] },
       })
@@ -87,22 +93,7 @@ export default async function (query, ctx) {
       });
   }
 
-  // Уведомляем пользователя о решении.
-  if (parsed.status === USER_STATUS.approved) {
-    await notifyUser(
-      target,
-      [
-        '✅ <b>Доступ к журналу рейсов открыт!</b>',
-        '',
-        'Открывайте Mini App и вносите рейсы: дата, заказчик, точки, пробег.',
-      ].join('\n'),
-      { reply_markup: { inline_keyboard: [[{ text: '📔 Открыть журнал', web_app: { url: MINI_APP_URL } }]] } },
-    );
-  } else {
-    await notifyUser(target, '🚫 Администратор отклонил доступ к журналу рейсов.');
-  }
-
   await answer(query.id, {
-    text: parsed.status === USER_STATUS.approved ? 'Доступ одобрен' : 'Доступ отклонён',
+    text: parsed.status === USER_STATUS.approved ? 'Доступ одобрен' : 'Заявка отклонена',
   });
 }

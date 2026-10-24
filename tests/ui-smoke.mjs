@@ -350,6 +350,7 @@ const handlers = {
     return { settings: store.settings };
   },
   adminUsers: async () => ({ users: store.users }),
+  adminAvatars: async () => ({ avatars: [{ id: 4, photo: 'data:image/jpeg;base64,AAAA' }] }),
   adminStats: async () => ({
     period: { from: '2026-10-01', to: '2026-10-15' },
     users: { total: 7, approved: 5, pending: 1, denied: 1, admins: 2 },
@@ -417,7 +418,7 @@ const fakeLocalStorage = {
 globalThis.window = {
   Telegram: { WebApp: telegram },
   localStorage: fakeLocalStorage,
-  matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+  matchMedia: (query) => ({ matches: String(query).includes('prefers-reduced-motion'), addEventListener() {}, removeEventListener() {} }),
   get location() {
     return fakeLocation;
   },
@@ -811,11 +812,70 @@ await check('админ-панель открывается и показыва�
   assert.match(text, /Пользователи/, 'пункт пользователей');
 });
 
+await check('аватары: фото из Telegram и плейсхолдер с инициалами', async () => {
+  store.users = [
+    { id: 4, tgId: 323173181, name: 'Ignat Rychkov', username: 'ignatrychkov', status: 'approved', isAdmin: true, isOwner: true, createdAt: '2026-10-01T00:00:00.000Z' },
+    { id: 5, tgId: 555, name: 'Очень Длинное Имя', username: 'verylong', status: 'approved', isAdmin: false, isOwner: false, createdAt: '2026-10-01T00:00:00.000Z' },
+  ];
+  setHash('#admin/users');
+  dispatchWindow('hashchange');
+  await flush(120);
+  const avatars = appNode().findAll((node) => node.classList.contains('avatar'));
+  assert.equal(avatars.length, 2, 'аватар у каждого пользователя');
+  const withPhoto = avatars.find((node) => node.classList.contains('avatar')).children || [];
+  const images = appNode().findAll((node) => node.classList.contains('avatar-img'));
+  assert.ok(images.length >= 1, 'фото вставлено, когда сервер его отдал');
+  const fallback = avatars.find((node) => node.classList.contains('avatar-fallback'));
+  assert.ok(fallback, 'без фото — плейсхолдер');
+  assert.equal(fallback.textContent, 'ОИ', 'инициалы из имени и фамилии');
+  const gradient = String(fallback.style.backgroundImage || fallback.style.background || '');
+  assert.ok(gradient.includes('linear-gradient'), 'градиентный фон');
+
+  // возвращаем заявку: следующим проверкам нужен pending
+  store.users = [
+    { id: 4, tgId: 323173181, name: 'Ignat Rychkov', username: 'ignatrychkov', status: 'approved', isAdmin: true, isOwner: true, createdAt: '2026-10-01T00:00:00.000Z' },
+    { id: 5, tgId: 555, name: 'Очень Длинное Имя', username: 'verylong', status: 'pending', isAdmin: false, isOwner: false, createdAt: '2026-10-01T00:00:00.000Z' },
+  ];
+});
+
+await check('счётчик: суммы выводятся по итогу после анимации', async () => {
+  setHash('#journal');
+  dispatchWindow('hashchange');
+  await flush(120);
+  const amount = appNode().find((node) => node.classList.contains('summary-amount'));
+  assert.ok(amount, 'блок суммы есть');
+  const number = amount.find((node) => node.classList.contains('money-number'));
+  assert.ok(number, 'число в отдельном узле счётчика');
+  assert.match(number.textContent, /2\s?716/, 'итог совпадает с расчётом (доход + дни)');
+
+  setHash('#report');
+  dispatchWindow('hashchange');
+  await flush(120);
+  const balance = appNode().find((node) => node.classList.contains('balance-amount'));
+  assert.ok(balance?.find((node) => node.classList.contains('money-number')), 'баланс тоже через счётчик');
+});
+
+await check('список записей: заголовок с отступами', async () => {
+  setHash('#journal');
+  dispatchWindow('hashchange');
+  await flush(120);
+  const head = appNode().find((node) => node.classList.contains('list-head'));
+  assert.ok(head, 'заголовок «Записи» есть');
+  assert.match(head.textContent, /Записи/, 'подпись на месте');
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync('src/styles.css', 'utf8');
+  assert.match(css, /\.list-head \{[^}]*margin: var\(--s6\) var\(--s4\) var\(--s2\)/s, 'отступы как у заголовков групп');
+});
+
 await check('дашборд админки: сводка, заявки и управление внизу', async () => {
   closeSheets();
-  setHash('#admin');
+  // список пользователей обновляет ctx.users — дашборд читает заявки оттуда
+  setHash('#admin/users');
   dispatchWindow('hashchange');
   await flush(80);
+  setHash('#admin');
+  dispatchWindow('hashchange');
+  await flush(100);
   const text = appNode().textContent;
   assert.match(text, /Пользователи/, 'метрика пользователей');
   assert.match(text, /Журналы/, 'метрика журналов');

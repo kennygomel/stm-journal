@@ -6,7 +6,7 @@
 import { api } from 'sdk';
 import { MINI_APP_URL, OWNER_IDS, USER_STATUS } from '../lib/config.js';
 import { ACCESS_DENIED_TEXT, appButton, isAdminRow, upsertUser } from '../lib/auth.js';
-import { notifyAdminsAboutRequest, sendWelcome } from '../lib/notify.js';
+import { ensureRequestNotified, sendWelcome } from '../lib/notify.js';
 import { displayName, escapeHtml } from '../lib/format.js';
 import { listUsers } from '../lib/users.js';
 
@@ -57,14 +57,19 @@ export default async function (message, ctx) {
     console.warn('setChatMenuButton failed', { reason: error?.description || String(error) });
   }
 
-  // Новый пользователь — запрос админам на approve/deny.
-  if (created && !admin) {
-    let delivered = 0;
+  // Заявка без доставленного уведомления (новая или созданная из Mini App) —
+  // досылаем запрос админам. Повторы отсекает requestNotifiedAt в базе.
+  let delivered = 0;
+  if (!admin && user.status === 'pending') {
     try {
-      delivered = await notifyAdminsAboutRequest(user);
+      delivered = await ensureRequestNotified(user);
     } catch (error) {
       console.warn('admin notify failed', { reason: error?.description || String(error) });
     }
+  }
+
+  // Новый пользователь — подтверждаем, что заявка принята.
+  if (created && !admin) {
     await reply({
       chat_id: chatId,
       text: [

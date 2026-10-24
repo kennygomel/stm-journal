@@ -2,6 +2,7 @@
 
 import { api } from '../api.js';
 import { add, card, clear, el, inlineField, input, mount, scrollFade, sectionTitle, toast } from '../dom.js';
+import { animateMoney } from '../counter.js';
 import { metric } from '../icons.js';
 import { PERIODS, rangeFor } from '../periods.js';
 import {
@@ -44,7 +45,11 @@ export function reportView(root) {
       [
         el('div', { class: 'balance-head' }, [
           el('div', { class: 'balance-label', text: `Баланс за период · ${period}` }),
-          el('div', { class: 'balance-amount' }, fmtMoney(totals.total ?? totals.income)),
+          (() => {
+            const amount = el('div', { class: 'balance-amount' });
+            animateMoney(amount, totals.total ?? totals.income);
+            return amount;
+          })(),
           totals.daysBonus
             ? el('div', { class: 'summary-sub' }, [
                 'рейсы ',

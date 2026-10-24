@@ -26,6 +26,11 @@ export const users = table(
     isOwner: integer('is_owner', { mode: 'boolean' }).notNull().default(false),
     // Тема оформления Mini App: 'light' | 'dark' | 'system' (хранится за пользователем).
     theme: text('theme'),
+    // Фото профиля Telegram, сохранённое как data URL (сервер скачивает байты).
+    photo: text('photo'),
+    photoUpdatedAt: integer('photo_updated_at', { mode: 'timestamp' }),
+    // Когда админам отправляли запрос на доступ — чтобы не спамить повторами.
+    requestNotifiedAt: integer('request_notified_at', { mode: 'timestamp' }),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
     approvedAt: integer('approved_at', { mode: 'timestamp' }),
     approvedBy: integer('approved_by'),

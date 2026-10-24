@@ -22,8 +22,12 @@ export function bynSign() {
  * Возвращает массив узлов: его принимает el() как children.
  */
 export function fmtMoney(kopecks) {
-  const value = Number(kopecks || 0) / 100;
-  return [`${money.format(value)}\u00A0`, bynSign()];
+  return [moneyText(kopecks), bynSign()];
+}
+
+/** Только число для суммы: «2 500 » с неразрывным пробелом (знак — отдельно). */
+export function moneyText(kopecks) {
+  return `${money.format(Number(kopecks || 0) / 100)}\u00A0`;
 }
 
 /** Копейки → «2 500,50» — для полей ввода. */

@@ -29,6 +29,8 @@ export const api = {
   recalc: ({ from = null, to = null, apply = false, userId = null } = {}) => call('adminRecalc', { from, to, apply, userId }),
 
   stats: ({ from = null, to = null } = {}) => call('adminStats', withTz({ from, to })),
+
+  avatars: () => call('adminAvatars', {}),
 };
 
 export { todayIso };

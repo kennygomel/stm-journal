@@ -7,6 +7,7 @@
 import { api } from '../api.js';
 import { emit, EVENTS } from '../events.js';
 import { button, card, clear, el, field, inlineField, input, scrollFade, sheet, toast } from '../dom.js';
+import { animateMoney } from '../counter.js';
 import { HOURS_STEP, hoursSteps } from '../hours.js';
 import { PERIODS, rangeFor } from '../periods.js';
 import {
@@ -319,7 +320,11 @@ export function journalView(root, ctx) {
           'Доход за период',
           daysBonus ? el('span', { class: 'bonus-note' }, ' · с доплатой за дни') : null,
         ]),
-        el('div', { class: 'summary-amount' }, fmtMoney(income + daysBonus)),
+        (() => {
+          const amount = el('div', { class: 'summary-amount' });
+          animateMoney(amount, income + daysBonus);
+          return amount;
+        })(),
         daysBonus ? el('div', { class: 'summary-sub' }, ['рейсы ', ...fmtMoney(income), ' + дни ', ...fmtMoney(daysBonus)]) : null,
       ]),
       el('div', { class: 'summary-meta' }, [

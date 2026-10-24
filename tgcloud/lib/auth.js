@@ -4,6 +4,7 @@ import { db, api, EndpointError } from 'sdk';
 import { eq } from 'sdk/db';
 import { users } from '../schema.js';
 import { MINI_APP_URL, OWNER_IDS, USER_STATUS } from './config.js';
+import { ensureRequestNotified } from './notify.js';
 
 export const ACCESS_DENIED_TEXT = {
   pending: '⏳ Ваш запрос на доступ ещё на рассмотрении. Я сообщу, как только админ ответит.',
@@ -40,22 +41,6 @@ export async function findUser(tgId) {
 /** Поиск по первичному ключу (users.id), а не по telegram id. */
 export async function findUserById(id) {
   return db.select().from(users).where(eq(users.id, Number(id))).get();
-}
-
-export async function listAdmins() {
-  const rows = await db.select().from(users).where(eq(users.isAdmin, true)).all();
-  const byTgId = new Map(rows.map((row) => [Number(row.tgId), row]));
-  return OWNER_IDS.map(
-    (tgId) =>
-      byTgId.get(tgId) || {
-        tgId,
-        chatId: tgId,
-        status: USER_STATUS.approved,
-        isAdmin: true,
-        isOwner: true,
-        firstName: 'Владелец',
-      },
-  );
 }
 
 /**
@@ -110,9 +95,15 @@ export async function requireUser(ctx) {
   }
   const row = await findUser(from.id);
   if (!row) {
-    // Первый заход в Mini App до /start в боте — тоже регистрируем заявку.
+    // Первый заход в Mini App до /start в боте — тоже регистрируем заявку
+    // и уведомляем админов: раньше этот путь проходил молча.
     const { user } = await upsertUser(from, from.id);
     if (isAdminRow(user)) return user;
+    try {
+      await ensureRequestNotified(user);
+    } catch (error) {
+      console.warn('admin notify failed', { reason: error?.description || String(error) });
+    }
     deny(user);
   }
   if (row.status !== USER_STATUS.approved) deny(row);
@@ -142,23 +133,6 @@ export async function requireOwner(ctx) {
 }
 
 /** Уведомление пользователю; false — если бот заблокирован пользователем. */
-export async function notifyUser(row, text, extra = {}) {
-  if (!row?.tgId) return false;
-  const payload = { text, parse_mode: 'HTML', ...extra };
-  try {
-    await api.sendMessage({ chat_id: row.chatId || row.tgId, ...payload });
-    return true;
-  } catch (error) {
-    try {
-      await api.sendMessage({ chat_id: row.tgId, ...payload });
-      return true;
-    } catch {
-      console.warn('notify failed', { tgId: row.tgId, reason: error?.description || String(error) });
-      return false;
-    }
-  }
-}
-
 /** Кнопка «открыть журнал» для сообщений бота. */
 export function appButton(text = '📔 Открыть журнал') {
   return { inline_keyboard: [[{ text, web_app: { url: MINI_APP_URL } }]] };

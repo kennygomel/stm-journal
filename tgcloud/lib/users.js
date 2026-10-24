@@ -2,10 +2,11 @@
 
 import { db, EndpointError } from 'sdk';
 import { desc, eq } from 'sdk/db';
-import { users } from '../schema.js';
+import { trips, users } from '../schema.js';
 import { MINI_APP_URL, USER_STATUS } from './config.js';
 import { displayName } from './format.js';
-import { isAdminRow, isOwnerRow, notifyUser, setUserStatus } from './auth.js';
+import { isAdminRow, isOwnerRow, setUserStatus } from './auth.js';
+import { notifyUser } from './notify.js';
 
 /** Даты отдаём строкой: в JSON они всё равно станут ISO, а так предсказуемо. */
 function toIso(value) {
@@ -37,6 +38,30 @@ export async function listUsers() {
     .sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || b.id - a.id);
 }
 
+/**
+ * Применяет решение админа: уведомляет пользователя и обновляет статус.
+ * Отклонение заявки удаляет пользователя и весь его журнал — «отклонить»
+ * значит «здесь такого человека нет», а не «пусть висит в списке».
+ */
+export async function applyStatus(admin, target, status) {
+  if (!target) throw new EndpointError('Пользователь не найден.', { code: 'USER_NOT_FOUND' });
+  if (isOwnerRow(target) && status !== USER_STATUS.approved) {
+    throw new EndpointError('Нельзя закрыть доступ владельцу журнала.', { code: 'OWNER_LOCK' });
+  }
+
+  // Сообщаем до удаления: после удаления строки не останется chatId.
+  if (target.status !== status) await notifyStatusChange(target, status);
+
+  if (status === USER_STATUS.denied) {
+    await db.delete(trips).where(eq(trips.userId, target.id)).run();
+    await db.delete(users).where(eq(users.id, target.id)).run();
+    return { ...toUserDto({ ...target, status }), deleted: true };
+  }
+
+  await setUserStatus(target.id, status, admin?.id ?? null);
+  return toUserDto({ ...target, status });
+}
+
 export async function setStatus(admin, input) {
   const userId = Number(input?.userId);
   const status = String(input?.status ?? '');
@@ -48,12 +73,7 @@ export async function setStatus(admin, input) {
   }
   const target = await db.select().from(users).where(eq(users.id, userId)).get();
   if (!target) throw new EndpointError('Пользователь не найден.', { code: 'USER_NOT_FOUND' });
-  if (isOwnerRow(target) && status !== USER_STATUS.approved) {
-    throw new EndpointError('Нельзя закрыть доступ владельцу журнала.', { code: 'OWNER_LOCK' });
-  }
-  await setUserStatus(target.id, status, admin.id);
-  await notifyStatusChange(target, status);
-  return toUserDto({ ...target, status });
+  return applyStatus(admin, target, status);
 }
 
 /** Сообщает пользователю о решении админа (в т.ч. из панели Mini App). */

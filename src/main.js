@@ -3,7 +3,9 @@
 import './styles.css';
 import { api } from './api.js';
 import { button, card, clear, el, mount, placeholder, scrollFade, sectionTitle, toast } from './dom.js';
+import { animateMoney } from './counter.js';
 import { fmtDate, fmtMoney, fmtNumber } from './format.js';
+import { avatar } from './avatar.js';
 import { EVENTS, on } from './events.js';
 import { closeApp, hasTelegram, initTelegram, setHeaderTheme, tg } from './telegram.js';
 import { THEMES, adoptServerTheme, applyTheme, getTheme, onThemeChange, setTheme, watchSystemTheme } from './theme.js';
@@ -353,7 +355,16 @@ async function adminHub(content) {
     board.append(el('div', { class: 'muted', text: 'Считаем сводку…' }));
     try {
       const stats = await api.stats({ from: `${today.slice(0, 7)}-01`, to: today });
-      mount(board, dashboardBlocks(stats, pending));
+      mount(board, dashboardBlocks(stats, pending, {}));
+      // Аватары догружаем следом и перерисовываем блоки, когда придут.
+      api
+        .avatars()
+        .then(({ avatars = [] }) => {
+          const photos = {};
+          for (const row of avatars) if (row.photo) photos[row.userId || row.id] = row.photo;
+          if (Object.keys(photos).length) mount(board, dashboardBlocks(stats, pending, photos));
+        })
+        .catch(() => {});
     } catch (error) {
       mount(board, placeholder('Сводка недоступна', error.message));
     }
@@ -388,7 +399,7 @@ function statLine(label, value) {
 }
 
 /** Блоки дашборда: люди, записи, журналы. */
-function dashboardBlocks(stats, pending) {
+function dashboardBlocks(stats, pending, photos = {}) {
   const blocks = [
     el('div', { class: 'stats' }, [
       el('div', { class: 'stat' }, [
@@ -411,7 +422,11 @@ function dashboardBlocks(stats, pending) {
       ]),
       el('div', { class: 'stat' }, [
         el('div', { class: 'label', text: 'Доход за месяц' }),
-        el('div', { class: 'value' }, fmtMoney(stats.trips.total)),
+        (() => {
+          const value = el('div', { class: 'value' });
+          animateMoney(value, stats.trips.total);
+          return value;
+        })(),
         el('div', { class: 'stat-foot' }, [
           stats.trips.daysBonus ? `включая дни ${fmtNumber(stats.trips.daysBonus / 100)} ₽` : 'без доплаты за дни',
         ]),
@@ -445,9 +460,12 @@ function dashboardBlocks(stats, pending) {
         stats.journals.map((row) =>
           el('div', { class: 'journal-row' }, [
             el('div', { class: 'journal-head' }, [
-              el('div', { class: 'journal-main' }, [
-                el('div', { class: 'journal-name', text: row.name }),
-                row.username ? el('div', { class: 'journal-user', text: `@${row.username}` }) : null,
+              el('div', { class: 'journal-person' }, [
+                avatar({ name: row.name, photo: photos[row.userId] || null, seed: row.userId, size: 'sm' }),
+                el('div', { class: 'journal-main' }, [
+                  el('div', { class: 'journal-name', text: row.name }),
+                  row.username ? el('div', { class: 'journal-user', text: `@${row.username}` }) : null,
+                ]),
               ]),
               el('div', { class: 'journal-income' }, fmtMoney(row.income)),
             ]),

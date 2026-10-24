@@ -1,9 +1,49 @@
 // lib/notify.js — уведомления админам и пользователям из хендлеров бота.
 
 import { api } from 'sdk';
+import { db } from 'sdk';
+import { eq } from 'sdk/db';
+import { users } from '../schema.js';
 import { displayName, escapeHtml, formatDateRu, userLine } from './format.js';
-import { CALLBACK, MINI_APP_URL } from './config.js';
-import { listAdmins, notifyUser } from './auth.js';
+import { CALLBACK, MINI_APP_URL, OWNER_IDS, USER_STATUS } from './config.js';
+
+/**
+ * Кому слать админские уведомления: все админы из базы плюс владельцы из
+ * конфига (даже если строки в базе ещё нет).
+ */
+export async function listAdmins() {
+  const rows = await db.select().from(users).where(eq(users.isAdmin, true)).all();
+  const byTgId = new Map(rows.map((row) => [Number(row.tgId), row]));
+  return OWNER_IDS.map(
+    (tgId) =>
+      byTgId.get(tgId) || {
+        tgId,
+        chatId: tgId,
+        status: USER_STATUS.approved,
+        isAdmin: true,
+        isOwner: true,
+        firstName: 'Владелец',
+      },
+  );
+}
+
+/** Личное сообщение пользователю; при ошибке пробуем по tgId. */
+export async function notifyUser(row, text, extra = {}) {
+  if (!row?.tgId) return false;
+  const payload = { text, parse_mode: 'HTML', ...extra };
+  try {
+    await api.sendMessage({ chat_id: row.chatId || row.tgId, ...payload });
+    return true;
+  } catch (error) {
+    try {
+      await api.sendMessage({ chat_id: row.tgId, ...payload });
+      return true;
+    } catch {
+      console.warn('notify failed', { tgId: row.tgId, reason: error?.description || String(error) });
+      return false;
+    }
+  }
+}
 
 function approvalKeyboard(user) {
   return {
@@ -54,6 +94,22 @@ export async function notifyAdminsAboutRequest(user) {
         });
       }
     }
+  }
+  return delivered;
+}
+
+/**
+ * Отправляет запрос на доступ один раз на заявку и запоминает это в базе.
+ * Нужен, потому что заявка может появиться и из бота (сообщение), и из Mini App
+ * (первый заход) — раньше второй путь админам ничего не присылал.
+ * @returns {Promise<number>} сколько админов получили запрос
+ */
+export async function ensureRequestNotified(user) {
+  if (!user || user.status !== USER_STATUS.pending) return 0;
+  if (user.requestNotifiedAt) return 0;
+  const delivered = await notifyAdminsAboutRequest(user);
+  if (delivered > 0) {
+    await db.update(users).set({ requestNotifiedAt: new Date() }).where(eq(users.id, user.id)).run();
   }
   return delivered;
 }

@@ -1,6 +1,7 @@
 // src/views/users.js — админ: заявки на доступ и права пользователей.
 
 import { api } from '../api.js';
+import { avatar } from '../avatar.js';
 import { button, card, el, placeholder, sectionTitle, toast } from '../dom.js';
 import { fmtDate } from '../format.js';
 import { confirmAction, haptic } from '../telegram.js';
@@ -14,6 +15,8 @@ const STATUS_LABEL = {
 
 export function usersView(root, ctx) {
   const body = el('div');
+  /** Фото по id пользователя: приходят отдельным запросом, без блокировки списка. */
+  let photos = {};
 
   function render(users) {
     ctx.users = users;
@@ -42,16 +45,19 @@ export function usersView(root, ctx) {
       row.createdAt ? `с ${fmtDate(toIso(row.createdAt))}` : null,
     ].filter(Boolean);
 
-    return card([
-      el('div', {}, [
-        el('div', { class: 'trip-name', text: row.name }),
-        el('div', { class: 'muted', text: details.join(' · ') }),
+    return el('div', { class: 'user-card' }, [
+      el('div', { class: 'user-head' }, [
+        avatar({ name: row.name, photo: photos[row.id] || null, seed: row.tgId, size: 'md' }),
+        el('div', { class: 'user-main' }, [
+          el('div', { class: 'trip-name', text: row.name }),
+          el('div', { class: 'muted', text: details.join(' · ') }),
+        ]),
       ]),
       el('div', { class: 'actions' }, [
         row.status !== 'approved'
           ? button('Одобрить', { className: 'btn ghost', onClick: () => change(row, 'approved') })
           : null,
-        row.status === 'approved'
+        row.status === 'approved' && !row.isOwner
           ? button('Заблокировать', {
               className: 'btn danger',
               onClick: async () => {
@@ -59,7 +65,9 @@ export function usersView(root, ctx) {
                 if (ok) await change(row, 'blocked');
               },
             })
-          : button('Отклонить', { className: 'btn danger', onClick: () => change(row, 'denied') }),
+          : row.isOwner
+            ? null
+            : button('Отклонить', { className: 'btn danger', onClick: () => change(row, 'denied') }),
         row.isOwner
           ? el('span', { class: 'role-tag' }, 'владелец')
           : button(row.isAdmin ? 'Снять админа' : 'Сделать админом', {
@@ -94,8 +102,22 @@ export function usersView(root, ctx) {
     try {
       const result = await api.users('list');
       render(result.users);
+      // Аватары догружаем после списка: экран не ждёт Bot API.
+      loadAvatars();
     } catch (error) {
       toast(error.message, { error: true });
+    }
+  }
+
+  async function loadAvatars() {
+    try {
+      const { avatars } = await api.avatars();
+      if (!avatars?.length) return;
+      photos = { ...photos };
+      for (const row of avatars) if (row.photo) photos[row.id] = row.photo;
+      render(ctx.users);
+    } catch {
+      /* без аватаров список всё равно рабочий */
     }
   }
 

@@ -502,6 +502,9 @@ export const api = new Proxy(
       return async (params = {}) => {
         calls.push({ method, params });
         if (method === 'getMe') return { id: 1, username: 'test_bot' };
+        // Аватары: у тестового «Telegram» фото нет.
+        if (method === 'getUserProfilePhotos') return { total_count: 0, photos: [] };
+        if (method === 'getFileContent') return new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
         return { message_id: calls.length, chat: { id: params.chat_id }, date: 0 };
       };
     },

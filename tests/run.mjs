@@ -669,6 +669,92 @@ await test('без периода сводка берёт текущий мес�
   assert.match(stats.period.to, /^\d{4}-\d{2}-\d{2}$/);
 });
 
+console.log('\nАватары');
+
+await test('инициалы и градиент как в Telegram', async () => {
+  const { initials, paletteIndex, gradientFor } = await import('../src/avatar.js');
+  assert.equal(initials('Ignat Rychkov'), 'IR', 'имя и фамилия');
+  assert.equal(initials('Торнике'), 'Т', 'одно имя — одна буква');
+  assert.equal(initials('  '), '?', 'пустое имя');
+  assert.equal(initials('дмитрий 🐾'), 'Д', 'эмодзи не мешает');
+  assert.equal(paletteIndex(4), paletteIndex(4), 'градиент стабилен для id');
+  assert.match(gradientFor(9), /^linear-gradient\(135deg, #[0-9A-F]{6}, #[0-9A-F]{6}\)$/i);
+  assert.ok(paletteIndex(0) >= 0 && paletteIndex(0) < 7, 'номер палитры в диапазоне');
+});
+
+await test('аватары: base64 и выбор размера фото', async () => {
+  const { toBase64, pickPhotoSize, avatarNeedsRefresh } = await import('../tgcloud/lib/avatars.js');
+  assert.equal(toBase64(new Uint8Array([0, 1, 2])), 'AAEC');
+  assert.equal(toBase64(new Uint8Array([255])), '/w==');
+  const sizes = [
+    { width: 40, height: 40, file_id: 's' },
+    { width: 160, height: 160, file_id: 'm' },
+    { width: 640, height: 640, file_id: 'l' },
+  ];
+  assert.equal(pickPhotoSize(sizes).file_id, 'm', 'ближайший к 160');
+  assert.equal(pickPhotoSize([]), null, 'пустой набор');
+  assert.equal(avatarNeedsRefresh({ photoUpdatedAt: null }), true, 'без даты — пора обновить');
+  assert.equal(avatarNeedsRefresh({ photoUpdatedAt: new Date() }), false, 'свежее фото не трогаем');
+  assert.equal(avatarNeedsRefresh({ photoUpdatedAt: new Date(Date.now() - 8 * 24 * 3600 * 1000) }), true, 'неделя прошла');
+});
+
+console.log('\nЗаявки и уведомления');
+
+await test('заявка из Mini App уведомляет админов', async () => {
+  resetApi();
+  const stranger = 777001;
+  await assert.rejects(() => endpoints.me({}, ctxFor(stranger)), (error) => {
+    assert.equal(error.parameters.code, 'ACCESS_DENIED');
+    return true;
+  });
+  const sent = calls.filter((call) => call.method === 'sendMessage');
+  assert.ok(sent.length >= 1, 'админам ушло сообщение о заявке');
+  const { users: all } = await endpoints.adminUsers({ action: 'list' }, ctxFor(ADMIN_ID));
+  const row = all.find((user) => user.tgId === stranger);
+  assert.ok(row, 'заявка сохранена');
+  assert.equal(row.status, 'pending');
+});
+
+await test('повторный заход не дублирует уведомление', async () => {
+  const stranger = 777001;
+  const { users: all } = await endpoints.adminUsers({ action: 'list' }, ctxFor(ADMIN_ID));
+  const row = all.find((user) => user.tgId === stranger);
+  resetApi();
+  await assert.rejects(() => endpoints.me({}, ctxFor(stranger)));
+  assert.equal(calls.filter((call) => call.method === 'sendMessage').length, 0, 'повторно не шлём');
+  assert.ok(row, 'строка на месте');
+});
+
+await test('отклонение удаляет пользователя и все его записи', async () => {
+  const { customers } = await endpoints.adminCustomers({ action: 'list' }, ctxFor(ADMIN_ID));
+  // берём любого заказчика: на этом шаге справочник ещё мог не наполниться
+  const customer = customers[0] || (await endpoints.adminCustomers({ action: 'create', name: 'Тест-заказчик' }, ctxFor(ADMIN_ID))).customer;
+  // заявка «мусорного» пользователя, которую потом отклоним
+  await assert.rejects(() => endpoints.me({}, ctxFor(777002)));
+  const { users: before } = await endpoints.adminUsers({ action: 'list' }, ctxFor(ADMIN_ID));
+  const applicant = before.find((row) => row.tgId === 777002);
+  assert.ok(applicant, 'заявка есть');
+
+  // имитируем записи в журнале заявителя (до одобрения их быть не может,
+  // поэтому создаём напрямую через API от имени пользователя после одобрения)
+  await endpoints.adminUsers({ action: 'setStatus', userId: applicant.id, status: 'approved' }, ctxFor(ADMIN_ID));
+  await endpoints.createTrip(
+    { date: '2025-05-05', customerId: customer.id, points: 13, distance: 310, hours: 9 },
+    ctxFor(777002),
+  );
+  const { users: withTrip } = await endpoints.adminUsers({ action: 'list' }, ctxFor(ADMIN_ID));
+  const approved = withTrip.find((row) => row.tgId === 777002);
+  assert.equal(approved.status, 'approved');
+
+  await endpoints.adminUsers({ action: 'setStatus', userId: approved.id, status: 'denied' }, ctxFor(ADMIN_ID));
+
+  const { users: after } = await endpoints.adminUsers({ action: 'list' }, ctxFor(ADMIN_ID));
+  assert.ok(!after.some((row) => row.tgId === 777002), 'пользователь удалён из базы');
+
+  // записей тоже нет: попытка зайти снова создаёт новую заявку, а не журнал
+  await assert.rejects(() => endpoints.listTrips({}, ctxFor(777002)));
+});
+
 console.log('\nАдмин: пользователи');
 
 await test('админ видит заявки и меняет статусы', async () => {
