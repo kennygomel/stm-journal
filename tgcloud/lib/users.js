@@ -6,6 +6,7 @@ import { trips, users } from '../schema.js';
 import { MINI_APP_URL, USER_STATUS } from './config.js';
 import { displayName } from './format.js';
 import { isAdminRow, isOwnerRow, setUserStatus } from './auth.js';
+import { ensureWeeklyAwards, prizeBadgesByUser } from './leaderboard.js';
 import { notifyUser } from './notify.js';
 
 /** Даты отдаём строкой: в JSON они всё равно станут ISO, а так предсказуемо. */
@@ -31,10 +32,13 @@ export function toUserDto(row) {
 }
 
 export async function listUsers() {
+  // Заодно подводим итоги завершившейся недели, если понедельник уже наступил.
+  await ensureWeeklyAwards().catch(() => {});
   const rows = await db.select().from(users).orderBy(desc(users.createdAt)).all();
+  const badges = await prizeBadgesByUser(rows.map((row) => row.id)).catch(() => new Map());
   const rank = { pending: 0, approved: 1, blocked: 2, denied: 3 };
   return rows
-    .map(toUserDto)
+    .map((row) => ({ ...toUserDto(row), prizes: badges.get(row.id) || [] }))
     .sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || b.id - a.id);
 }
 

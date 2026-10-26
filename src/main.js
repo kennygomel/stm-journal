@@ -3,7 +3,7 @@
 import './styles.css';
 import { api } from './api.js';
 import { button, card, clear, el, mount, placeholder, scrollFade, sectionTitle, toast } from './dom.js';
-import { animateMoney } from './counter.js';
+import { animateMoney, animateNumber } from './counter.js';
 import { fmtDate, fmtMoney, fmtNumber } from './format.js';
 import { avatar } from './avatar.js';
 import { EVENTS, on } from './events.js';
@@ -11,6 +11,7 @@ import { closeApp, hasTelegram, initTelegram, setHeaderTheme, tg } from './teleg
 import { THEMES, adoptServerTheme, applyTheme, getTheme, onThemeChange, setTheme, watchSystemTheme } from './theme.js';
 import { journalView } from './views/journal.js';
 import { reportView } from './views/report.js';
+import { leaderboardView } from './views/leaderboard.js';
 import { ratesView } from './views/rates.js';
 import { customersView } from './views/customers.js';
 import { usersView } from './views/users.js';
@@ -191,6 +192,7 @@ function fatal(title, message, { retry = false } = {}) {
 const TABS = [
   { id: 'journal', label: 'Журнал' },
   { id: 'report', label: 'История' },
+  { id: 'board', label: 'Рейтинг' },
   { id: 'admin', label: 'Админ', adminOnly: true },
 ];
 
@@ -198,6 +200,7 @@ function parseRoute() {
   const raw = String(window.location.hash || '').replace(/^#\/?/, '');
   const [tab, sub] = raw.split('/');
   if (tab === 'report') return { tab: 'report' };
+  if (tab === 'board') return { tab: 'board' };
   if (tab === 'admin') return { tab: 'admin', sub: sub || 'hub' };
   return { tab: 'journal' };
 }
@@ -276,6 +279,12 @@ async function renderRoute() {
   if (route.tab === 'report') {
     header.append(brandRow(el('h1', { text: 'История' })));
     activeView = reportView(content);
+    return;
+  }
+
+  if (route.tab === 'board') {
+    header.append(brandRow(el('h1', { text: 'Рейтинг' })));
+    activeView = leaderboardView(content);
     return;
   }
 
@@ -404,7 +413,11 @@ function dashboardBlocks(stats, pending, photos = {}) {
     el('div', { class: 'stats' }, [
       el('div', { class: 'stat' }, [
         el('div', { class: 'label', text: 'Пользователи' }),
-        el('div', { class: 'value' }, [String(stats.users.total)]),
+        (() => {
+          const value = el('div', { class: 'value' });
+          animateNumber(value, stats.users.total);
+          return value;
+        })(),
         el('div', { class: 'stat-foot' }, [
           `${stats.users.approved} с доступом`,
           pending ? ` · ${pending} ждёт` : '',
@@ -412,12 +425,20 @@ function dashboardBlocks(stats, pending, photos = {}) {
       ]),
       el('div', { class: 'stat' }, [
         el('div', { class: 'label', text: 'Журналы' }),
-        el('div', { class: 'value' }, [String(stats.trips.journals)]),
+        (() => {
+          const value = el('div', { class: 'value' });
+          animateNumber(value, stats.trips.journals);
+          return value;
+        })(),
         el('div', { class: 'stat-foot' }, [`${stats.trips.workingDays} раб. дней`]),
       ]),
       el('div', { class: 'stat' }, [
         el('div', { class: 'label', text: 'Записи за месяц' }),
-        el('div', { class: 'value' }, [fmtNumber(stats.trips.count)]),
+        (() => {
+          const value = el('div', { class: 'value' });
+          animateNumber(value, stats.trips.count);
+          return value;
+        })(),
         el('div', { class: 'stat-foot' }, [`в среднем ${fmtNumber(stats.trips.avgIncome / 100)} ₽`]),
       ]),
       el('div', { class: 'stat' }, [

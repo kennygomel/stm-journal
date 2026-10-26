@@ -60,7 +60,13 @@ window.__stubRan = true;
     },
     adminCustomers: { customers: customers, settings: rates },
     adminRates: { settings: rates },
-    adminUsers: { users: [user, { id: 5, tgId: 555, name: 'Очень Длинное Имя Пользователя Для Проверки', username: 'verylongusername', status: 'pending', isAdmin: false, isOwner: false, createdAt: '2026-10-01T00:00:00.000Z' }] },
+    leaderboard: { today: '2026-10-19', week: { weekStart: '2026-10-19', from: '2026-10-19', to: '2026-10-25' }, categories: [
+    { id: 'income', label: 'Доход', unit: 'money', rows: [{ userId: 4, place: 1, prize: '🍌', value: 256600, name: longName, username: 'verylongusername' }, { userId: 5, place: 2, prize: '🤡', value: 100000, name: 'Второй', username: null }] },
+    { id: 'points', label: 'Точки', unit: 'count', rows: [] },
+    { id: 'distance', label: 'Пробег', unit: 'km', rows: [] },
+    { id: 'hours', label: 'Время', unit: 'hours', rows: [] },
+  ], lastWeek: { weekStart: '2026-10-12', from: '2026-10-12', to: '2026-10-18', categories: [{ id: 'income', label: 'Доход', unit: 'money', rows: [{ userId: 9, place: 1, prize: '🍌', value: 500000, name: longName, username: null }] }] }, myPrizes: ['🍌'], myAwards: [] },
+  adminUsers: { users: [user, { id: 5, tgId: 555, name: 'Очень Длинное Имя Пользователя Для Проверки', username: 'verylongusername', status: 'pending', isAdmin: false, isOwner: false, createdAt: '2026-10-01T00:00:00.000Z' }] },
     adminRecalc: {
       from: '2026-10-01', to: '2026-10-31', applied: false, total: 128, changed: 96,
       incomeBefore: 19876543, incomeAfter: 21543210, delta: 1666667,
@@ -223,6 +229,7 @@ async function evaluate(cdp, expression) {
 const SCREENS = [
   ['журнал', '#journal'],
   ['история', '#report'],
+  ['рейтинг', '#board'],
   ['админка', '#admin'],
   ['тарифы', '#admin/rates'],
   ['заказчики', '#admin/customers'],

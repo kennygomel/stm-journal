@@ -132,3 +132,28 @@ export const trips = table(
     customerIdx: index('idx_trips_customer').on(t.customerId),
   }),
 );
+
+// Еженедельный лидерборд: призы за 1–3 места в четырёх номинациях.
+// Строка — это вручённый приз за конкретную неделю и номинацию.
+//   weekStart — понедельник недели, «YYYY-MM-DD» (Europe/Minsk)
+//   category  — income | points | distance | hours
+//   place     — 1 (банан), 2 (клоун), 3 (петух)
+//   value     — результат победителя в единицах номинации (доход — копейки)
+export const awards = table(
+  'awards',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id').notNull(),
+    weekStart: text('week_start').notNull(),
+    category: text('category').notNull(),
+    place: integer('place').notNull(),
+    value: integer('value').notNull().default(0),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (t) => ({
+    weekIdx: index('idx_awards_week').on(t.weekStart),
+    userIdx: index('idx_awards_user').on(t.userId),
+    // Один приз на место в номинации за неделю: повторный подсчёт не дублирует.
+    weekCategoryPlace: uniqueIndex('uidx_awards_week_place').on(t.weekStart, t.category, t.place),
+  }),
+);

@@ -350,6 +350,25 @@ const handlers = {
     return { settings: store.settings };
   },
   adminUsers: async () => ({ users: store.users }),
+  leaderboard: async () => ({
+    today: '2026-10-19',
+    week: { weekStart: '2026-10-19', from: '2026-10-19', to: '2026-10-25', endsAt: '2026-10-25' },
+    categories: [
+      { id: 'income', label: 'Доход', unit: 'money', rows: [
+        { userId: 4, place: 1, prize: '🍌', value: 256600, trips: 3, name: 'Ignat Rychkov', username: 'ignatrychkov' },
+        { userId: 9, place: 2, prize: '🤡', value: 100000, trips: 2, name: 'Торнике', username: 'nik_nagibatel' },
+        { userId: 5, place: 3, prize: '🐔', value: 50000, trips: 1, name: 'Третий', username: null },
+      ] },
+      { id: 'points', label: 'Точки', unit: 'count', rows: [{ userId: 9, place: 1, prize: '🍌', value: 120, trips: 5, name: 'Торнике', username: 'nik_nagibatel' }] },
+      { id: 'distance', label: 'Пробег', unit: 'km', rows: [{ userId: 5, place: 1, prize: '🍌', value: 700, trips: 2, name: 'Третий', username: null }] },
+      { id: 'hours', label: 'Время', unit: 'hours', rows: [{ userId: 4, place: 1, prize: '🍌', value: 32, trips: 3, name: 'Ignat Rychkov', username: 'ignatrychkov' }] },
+    ],
+    lastWeek: { weekStart: '2026-10-12', from: '2026-10-12', to: '2026-10-18', created: 0, categories: [
+      { id: 'income', label: 'Доход', unit: 'money', rows: [{ userId: 9, place: 1, prize: '🍌', value: 500000, name: 'Торнике', username: 'nik_nagibatel' }] },
+    ] },
+    myPrizes: ['🍌'],
+    myAwards: [{ weekStart: '2026-10-12', category: 'income', place: 1, value: 500000, prize: '🍌' }],
+  }),
   adminAvatars: async () => ({ avatars: [{ id: 4, photo: 'data:image/jpeg;base64,AAAA' }] }),
   adminStats: async () => ({
     period: { from: '2026-10-01', to: '2026-10-15' },
@@ -573,11 +592,11 @@ await check('серверная тема сильнее локальной пр�
   localStorageData.set('journal:theme', 'light');
 });
 
-await check('нижний бар: Журнал, История и Админ', () => {
+await check('нижний бар: Журнал, История, Рейтинг и Админ', () => {
   const tabs = appNode()
     .findAll((node) => node.tagName.toLowerCase() === 'button' && node.classList.contains('nav-item'))
     .map((node) => node.textContent);
-  assert.deepEqual(tabs, ['Журнал', 'История', 'Админ']);
+  assert.deepEqual(tabs, ['Журнал', 'История', 'Рейтинг', 'Админ']);
 });
 
 await check('форма рейса открывается и считает доход с надбавками', async () => {
@@ -836,6 +855,32 @@ await check('аватары: фото из Telegram и плейсхолдер с
     { id: 4, tgId: 323173181, name: 'Ignat Rychkov', username: 'ignatrychkov', status: 'approved', isAdmin: true, isOwner: true, createdAt: '2026-10-01T00:00:00.000Z' },
     { id: 5, tgId: 555, name: 'Очень Длинное Имя', username: 'verylong', status: 'pending', isAdmin: false, isOwner: false, createdAt: '2026-10-01T00:00:00.000Z' },
   ];
+});
+
+await check('рейтинг: неделя, номинации и призы', async () => {
+  setHash('#board');
+  dispatchWindow('hashchange');
+  await flush(150);
+  const text = appNode().textContent;
+  assert.match(text, /Рейтинг/, 'заголовок экрана');
+  assert.match(text, /Неделя/, 'границы недели');
+  assert.match(text, /Доход/, 'номинация доход');
+  assert.match(text, /Точки/, 'номинация точки');
+  assert.match(text, /Пробег/, 'номинация пробег');
+  assert.match(text, /Время/, 'номинация время');
+  assert.match(text, /🍌/, 'банан за первое место');
+  assert.match(text, /🤡/, 'клоун за второе');
+  assert.match(text, /🐔/, 'петух за третье');
+  assert.match(text, /2\s?566/, 'доход победителя');
+  assert.match(text, /Итоги прошлой недели/, 'итоги прошлой недели');
+  assert.match(text, /Мои призы/, 'личные призы');
+
+  // переключение номинации меняет список
+  const chips = appNode().findAll((node) => node.classList.contains('chip'));
+  const distance = chips.find((node) => node.textContent === 'Пробег');
+  await distance.click();
+  await flush(60);
+  assert.match(appNode().textContent, /700 км/, 'пробег победителя');
 });
 
 await check('счётчик: суммы выводятся по итогу после анимации', async () => {
@@ -1172,7 +1217,7 @@ await check('админ без прав владельца не видит та�
   const tabs = root
     .findAll((node) => node.tagName.toLowerCase() === 'button' && node.classList.contains('nav-item'))
     .map((node) => node.textContent);
-  assert.deepEqual(tabs, ['Журнал', 'История', 'Админ']);
+  assert.deepEqual(tabs, ['Журнал', 'История', 'Рейтинг', 'Админ']);
   setHash('#admin');
   dispatchWindow('hashchange');
   await flush(60);
@@ -1195,7 +1240,7 @@ await check('не-админ не видит вкладку «Админ»', asy
     .get('app')
     .findAll((node) => node.tagName.toLowerCase() === 'button' && node.classList.contains('nav-item'))
     .map((node) => node.textContent);
-  assert.deepEqual(tabs, ['Журнал', 'История']);
+  assert.deepEqual(tabs, ['Журнал', 'История', 'Рейтинг']);
 });
 
 console.log(`\nИтог: ${failures ? 'есть ошибки' : 'все проверки пройдены'}\n`);

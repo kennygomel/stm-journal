@@ -5,6 +5,7 @@ import { listCustomerDtos } from '../lib/customers.js';
 import { getSettings } from '../lib/calc.js';
 import { todayIso } from '../lib/format.js';
 import { toSettingsDto } from '../lib/settings.js';
+import { awardsOf } from '../lib/leaderboard.js';
 
 export default async function (input, ctx) {
   const user = await requireUser(ctx);
@@ -14,7 +15,11 @@ export default async function (input, ctx) {
   if (isAdmin || avatarNeedsRefresh(user)) {
     photo = (await refreshUserPhoto(user)) || photo;
   }
-  const [customers, settings] = await Promise.all([listCustomerDtos({ includeInactive: isAdmin }), getSettings()]);
+  const [customers, settings, myAwards] = await Promise.all([
+    listCustomerDtos({ includeInactive: isAdmin }),
+    getSettings(),
+    awardsOf(user.id).catch(() => []),
+  ]);
   return {
     user: {
       id: user.id,
@@ -26,6 +31,7 @@ export default async function (input, ctx) {
       permissions: permissionsOf(user),
       theme: user.theme || null,
       photo,
+      prizes: myAwards.map((row) => row.prize).filter(Boolean),
     },
     settings: toSettingsDto(settings),
     customers: customers.filter((row) => row.active || isAdmin),

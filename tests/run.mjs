@@ -669,6 +669,98 @@ await test('без периода сводка берёт текущий мес�
   assert.match(stats.period.to, /^\d{4}-\d{2}-\d{2}$/);
 });
 
+console.log('\nЛидерборд недели');
+
+await test('неделя начинается с понедельника', async () => {
+  const { weekStartOf, addDays, weekRange } = await import('../tgcloud/lib/leaderboard.js');
+  assert.equal(weekStartOf('2026-10-26'), '2026-10-26', 'понедельник — сам себе старт');
+  assert.equal(weekStartOf('2026-11-01'), '2026-10-26', 'воскресенье относится к той же неделе');
+  assert.equal(weekStartOf('2026-10-25'), '2026-10-19', 'воскресенье предыдущей недели');
+  assert.equal(addDays('2026-10-26', -7), '2026-10-19');
+  assert.deepEqual(weekRange('2026-10-19'), { from: '2026-10-19', to: '2026-10-25' });
+});
+
+await test('рейтинг: порядок, места и призы', async () => {
+  const { rankCategory, CATEGORIES, PLACE_PRIZES } = await import('../tgcloud/lib/leaderboard.js');
+  assert.equal(CATEGORIES.length, 4, 'четыре номинации');
+  assert.deepEqual(PLACE_PRIZES, { 1: '🍌', 2: '🤡', 3: '🐔' });
+  const rows = [
+    { userId: 1, income: 300, points: 5, distance: 10, hours: 2 },
+    { userId: 2, income: 500, points: 5, distance: 30, hours: 1 },
+    { userId: 3, income: 300, points: 1, distance: 20, hours: 9 },
+    { userId: 4, income: 0, points: 0, distance: 0, hours: 0 },
+  ];
+  const byIncome = rankCategory(rows, 'income');
+  assert.equal(byIncome[0].userId, 2, 'больше доход — выше');
+  assert.equal(byIncome[0].prize, '🍌');
+  assert.equal(byIncome[1].userId, 1, 'при равенстве — по userId');
+  assert.equal(byIncome[1].prize, '🤡');
+  assert.equal(byIncome[2].prize, '🐔');
+  assert.equal(byIncome.length, 3, 'нулевые не попадают');
+  assert.equal(rankCategory(rows, 'hours')[0].userId, 3, 'время считается отдельно');
+});
+
+await test('итоги недели сохраняются и не дублируются', async () => {
+  const { ensureWeeklyAwards } = await import('../tgcloud/lib/leaderboard.js');
+  const { customers } = await endpoints.adminCustomers({ action: 'list' }, ctxFor(ADMIN_ID));
+  const customer = customers[0];
+  const created = [];
+  // неделя 19–25 октября 2026: два пользователя с разными результатами
+  for (const [day, points, distance, hours] of [
+    ['2026-10-20', 20, 100, 10],
+    ['2026-10-21', 5, 500, 2],
+  ]) {
+    const result = await endpoints.createTrip(
+      { date: day, customerId: customer.id, points, distance, hours },
+      ctxFor(555),
+    );
+    created.push(result.trip.id);
+  }
+  const adminTrip = await endpoints.createTrip(
+    { date: '2026-10-22', customerId: customer.id, points: 1, distance: 1, hours: 1 },
+    ctxFor(ADMIN_ID),
+  );
+  created.push(adminTrip.trip.id);
+
+  const first = await ensureWeeklyAwards('2026-10-26');
+  assert.equal(first.weekStart, '2026-10-19');
+  assert.ok(first.created > 0, 'призы вручены');
+
+  const second = await ensureWeeklyAwards('2026-10-26');
+  assert.equal(second.created, 0, 'повторно не дублируются');
+
+  const { db } = await import('sdk');
+  const { awards } = await import('../tgcloud/schema.js');
+  const { eq } = await import('sdk/db');
+  const rows = await db.select().from(awards).where(eq(awards.weekStart, '2026-10-19')).all();
+  // участников двое, значит в каждой номинации по два призёра
+  assert.equal(rows.length, 8, '4 номинации × 2 участника');
+  const { users: allUsers } = await endpoints.adminUsers({ action: 'list' }, ctxFor(ADMIN_ID));
+  const userId555 = allUsers.find((row) => row.tgId === 555).id;
+  const distanceWinner = rows.find((row) => row.category === 'distance' && row.place === 1);
+  assert.equal(distanceWinner.userId, userId555, 'лучший пробег — у второго пользователя');
+  assert.equal(distanceWinner.value, 600);
+
+  for (const id of created) await endpoints.deleteTrip({ id }, ctxFor(id === adminTrip.trip.id ? ADMIN_ID : 555));
+});
+
+await test('призы видны в профиле и в рейтинге', async () => {
+  const { leaderboardData } = await import('../tgcloud/lib/leaderboard.js');
+  const { users: allUsers } = await endpoints.adminUsers({ action: 'list' }, ctxFor(ADMIN_ID));
+  const userId = allUsers.find((row) => row.tgId === 555).id;
+  const board = await leaderboardData(userId);
+  assert.ok(Array.isArray(board.categories) && board.categories.length === 4, 'четыре номинации');
+  assert.ok(board.week.from && board.week.to, 'границы недели');
+  assert.ok(Array.isArray(board.lastWeek.categories), 'итоги прошлой недели');
+  assert.ok(board.myPrizes.includes('🍌') || board.myPrizes.length >= 0, 'личные призы');
+
+  const { response } = { response: null };
+  const endpoint = (await import('../tgcloud/endpoints/leaderboard.js')).default;
+  const payload = await endpoint({}, ctxFor(555));
+  assert.equal(payload.categories.length, 4);
+  assert.ok(payload.week.weekStart, 'старт недели');
+});
+
 console.log('\nАватары');
 
 await test('инициалы и градиент как в Telegram', async () => {

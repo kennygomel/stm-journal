@@ -49,7 +49,11 @@ export function usersView(root, ctx) {
       el('div', { class: 'user-head' }, [
         avatar({ name: row.name, photo: photos[row.id] || null, seed: row.tgId, size: 'md' }),
         el('div', { class: 'user-main' }, [
-          el('div', { class: 'trip-name', text: row.name }),
+          el('div', { class: 'user-name-row' }, [
+            el('div', { class: 'trip-name', text: row.name }),
+            // Призы лидерборда живут в профиле: 🍌 первое, 🤡 второе, 🐔 третье.
+            row.prizes?.length ? el('span', { class: 'user-prizes', title: 'Призы лидерборда', text: row.prizes.join(' ') }) : null,
+          ]),
           el('div', { class: 'muted', text: details.join(' · ') }),
         ]),
       ]),

@@ -31,6 +31,8 @@ export const api = {
   stats: ({ from = null, to = null } = {}) => call('adminStats', withTz({ from, to })),
 
   avatars: () => call('adminAvatars', {}),
+
+  leaderboard: () => call('leaderboard', {}),
 };
 
 export { todayIso };

@@ -1383,6 +1383,19 @@ html[data-theme='dark'] .brand-mark {
   min-width: 0;
 }
 
+.user-name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+
+.user-prizes {
+  font-size: 15px;
+  line-height: 1;
+  letter-spacing: 1px;
+}
+
 /* Журнал в дашборде: аватар стоит рядом с именем владельца. */
 .journal-person {
   display: flex;
@@ -1390,6 +1403,133 @@ html[data-theme='dark'] .brand-mark {
   gap: var(--s2);
   min-width: 0;
   flex: 1;
+}
+
+/* -------------------------------------------------------------- рейтинг */
+
+.board-chips {
+  margin-bottom: var(--s3);
+}
+
+.board-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) 0;
+  border-top: 1px solid var(--divider);
+}
+
+.board-row:first-child {
+  border-top: 0;
+  padding-top: var(--s1);
+}
+
+.board-row:last-child {
+  padding-bottom: var(--s1);
+}
+
+/* Место: приз для тройки лидеров, иначе просто номер. */
+.board-place {
+  flex-shrink: 0;
+  width: 26px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--hint);
+}
+
+.board-top .board-place {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.board-person {
+  flex: 1;
+  min-width: 0;
+}
+
+.board-name {
+  font-weight: 600;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.board-user {
+  font-size: 12px;
+  color: var(--hint);
+  overflow-wrap: anywhere;
+}
+
+.board-value {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 2px;
+  max-width: 45%;
+  text-align: right;
+  font-weight: 700;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Итоги прошлой недели: по блоку на номинацию. */
+.board-last + .board-last {
+  margin-top: var(--s3);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--divider);
+}
+
+.board-last-title {
+  margin-bottom: var(--s1);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hint);
+}
+
+.board-last-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  padding: 2px 0;
+  font-size: 13.5px;
+}
+
+.board-prize {
+  flex-shrink: 0;
+  width: 20px;
+  font-size: 15px;
+}
+
+.board-last-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.board-last-value {
+  flex-shrink: 0;
+  color: var(--hint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Личные призы: эмодзи и количество. */
+.board-my {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-size: 22px;
+}
+
+.board-my-count {
+  margin-left: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hint);
+  vertical-align: middle;
 }
 
 /* ------------------------------------------------------------- дашборд */
