@@ -9,18 +9,18 @@ import { requireOwner } from '../lib/auth.js';
 import { avatarNeedsRefresh, refreshUserPhoto } from '../lib/avatars.js';
 
 /** Сколько пользователей догружаем за один вызов — чтобы не упереться в лимиты. */
-const BATCH = 8;
+const BATCH = 20;
 
 export default async function (input, ctx) {
   await requireOwner(ctx);
-  const rows = await db.select().from(users).all();
-  const stale = rows.filter(avatarNeedsRefresh).slice(0, BATCH);
+  const before = await db.select().from(users).all();
+  const stale = before.filter(avatarNeedsRefresh).slice(0, BATCH);
+  for (const row of stale) await refreshUserPhoto(row);
 
-  const avatars = [];
-  for (const row of stale) {
-    const photo = await refreshUserPhoto(row);
-    avatars.push({ id: row.id, photo: photo || null });
-  }
-  const remaining = rows.filter((row) => avatarNeedsRefresh(row)).length - stale.length;
-  return { avatars, remaining: Math.max(0, remaining) };
+  // Отдаём ВСЕ сохранённые фото, а не только что скачанные: иначе уже
+  // загруженные аватары не доходили до интерфейса и все выглядели одинаково.
+  const rows = stale.length ? await db.select().from(users).all() : before;
+  const avatars = rows.map((row) => ({ id: row.id, photo: row.photo || null }));
+  const remaining = rows.filter((row) => avatarNeedsRefresh(row)).length;
+  return { avatars, remaining };
 }

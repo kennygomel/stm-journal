@@ -105,6 +105,8 @@ async function namesByIds(ids) {
       {
         name: [row.firstName, row.lastName].filter(Boolean).join(' ') || row.username || `ID ${row.tgId}`,
         username: row.username || null,
+        // Аватар в рейтинге — публичная часть профиля (миниатюра, не файл).
+        photo: row.photo || null,
       },
     ]),
   );
@@ -196,6 +198,7 @@ export async function leaderboardData(userId) {
       trips: row.trips,
       name: currentNames.get(row.userId)?.name || `ID ${row.userId}`,
       username: currentNames.get(row.userId)?.username || null,
+      photo: currentNames.get(row.userId)?.photo || null,
     })),
   }));
 
@@ -217,6 +220,7 @@ export async function leaderboardData(userId) {
           value: row.value,
           name: lastNames.get(row.userId)?.name || `ID ${row.userId}`,
           username: lastNames.get(row.userId)?.username || null,
+          photo: lastNames.get(row.userId)?.photo || null,
         })),
     })),
   };

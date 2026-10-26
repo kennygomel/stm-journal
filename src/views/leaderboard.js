@@ -75,7 +75,7 @@ export function leaderboardView(root) {
         category.rows.map((row) =>
           el('div', { class: `board-row${row.place <= 3 ? ' board-top' : ''}` }, [
             el('div', { class: 'board-place' }, row.prize || String(row.place)),
-            avatar({ name: row.name, seed: row.userId, size: 'sm' }),
+            avatar({ name: row.name, photo: row.photo || null, seed: row.userId, size: 'sm' }),
             el('div', { class: 'board-person' }, [
               el('div', { class: 'board-name', text: row.name }),
               row.username ? el('div', { class: 'board-user', text: `@${row.username}` }) : null,

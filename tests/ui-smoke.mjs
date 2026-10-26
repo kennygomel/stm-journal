@@ -355,7 +355,7 @@ const handlers = {
     week: { weekStart: '2026-10-19', from: '2026-10-19', to: '2026-10-25', endsAt: '2026-10-25' },
     categories: [
       { id: 'income', label: 'Доход', unit: 'money', rows: [
-        { userId: 4, place: 1, prize: '🍌', value: 256600, trips: 3, name: 'Ignat Rychkov', username: 'ignatrychkov' },
+        { userId: 4, place: 1, prize: '🍌', value: 256600, trips: 3, name: 'Ignat Rychkov', username: 'ignatrychkov', photo: 'data:image/jpeg;base64,BBBB' },
         { userId: 9, place: 2, prize: '🤡', value: 100000, trips: 2, name: 'Торнике', username: 'nik_nagibatel' },
         { userId: 5, place: 3, prize: '🐔', value: 50000, trips: 1, name: 'Третий', username: null },
       ] },
@@ -869,6 +869,10 @@ await check('рейтинг: неделя, номинации и призы', as
   assert.match(text, /Пробег/, 'номинация пробег');
   assert.match(text, /Время/, 'номинация время');
   assert.match(text, /🍌/, 'банан за первое место');
+  assert.ok(
+    appNode().findAll((node) => node.classList.contains('avatar-img')).length >= 1,
+    'фото участника используется в рейтинге',
+  );
   assert.match(text, /🤡/, 'клоун за второе');
   assert.match(text, /🐔/, 'петух за третье');
   assert.match(text, /2\s?566/, 'доход победителя');

@@ -14,6 +14,8 @@ import { users } from '../schema.js';
 const MAX_BYTES = 400 * 1024;
 /** Через сколько считаем фото устаревшим. */
 const REFRESH_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+/** Если фото не нашлось, пробуем снова не чаще раза в час. */
+const RETRY_AFTER_MS = 60 * 60 * 1000;
 /** Предпочтительный размер: ближе к 160 px, чтобы не тянуть 640. */
 const TARGET_SIZE = 160;
 
@@ -51,7 +53,10 @@ export function avatarNeedsRefresh(row) {
   if (!row.photoUpdatedAt) return true;
   const updated = row.photoUpdatedAt instanceof Date ? row.photoUpdatedAt : new Date(row.photoUpdatedAt);
   if (Number.isNaN(updated.getTime())) return true;
-  return Date.now() - updated.getTime() > REFRESH_AFTER_MS;
+  const age = Date.now() - updated.getTime();
+  // Без фото — не сдаёмся навсегда: пробуем снова через час.
+  if (!row.photo) return age > RETRY_AFTER_MS;
+  return age > REFRESH_AFTER_MS;
 }
 
 /**

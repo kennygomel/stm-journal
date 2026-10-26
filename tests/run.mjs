@@ -786,8 +786,39 @@ await test('аватары: base64 и выбор размера фото', async
   assert.equal(pickPhotoSize(sizes).file_id, 'm', 'ближайший к 160');
   assert.equal(pickPhotoSize([]), null, 'пустой набор');
   assert.equal(avatarNeedsRefresh({ photoUpdatedAt: null }), true, 'без даты — пора обновить');
-  assert.equal(avatarNeedsRefresh({ photoUpdatedAt: new Date() }), false, 'свежее фото не трогаем');
-  assert.equal(avatarNeedsRefresh({ photoUpdatedAt: new Date(Date.now() - 8 * 24 * 3600 * 1000) }), true, 'неделя прошла');
+  assert.equal(avatarNeedsRefresh({ photo: 'data:x', photoUpdatedAt: new Date() }), false, 'свежее фото не трогаем');
+  assert.equal(
+    avatarNeedsRefresh({ photo: 'data:x', photoUpdatedAt: new Date(Date.now() - 8 * 24 * 3600 * 1000) }),
+    true,
+    'неделя прошла',
+  );
+  // фото нет: не сдаёмся навсегда, но и не дёргаем API каждую секунду
+  assert.equal(avatarNeedsRefresh({ photo: null, photoUpdatedAt: new Date() }), false, 'час ещё не прошёл');
+  assert.equal(
+    avatarNeedsRefresh({ photo: null, photoUpdatedAt: new Date(Date.now() - 2 * 3600 * 1000) }),
+    true,
+    'через час пробуем снова',
+  );
+});
+
+await test('эндпоинт аватаров отдаёт уже сохранённые фото', async () => {
+  const { db } = await import('sdk');
+  const { eq } = await import('sdk/db');
+  const { users } = await import('../tgcloud/schema.js');
+  const { users: all } = await endpoints.adminUsers({ action: 'list' }, ctxFor(ADMIN_ID));
+  const target = all.find((row) => row.tgId === 555);
+  await db
+    .update(users)
+    .set({ photo: 'data:image/jpeg;base64,AAAA', photoUpdatedAt: new Date() })
+    .where(eq(users.id, target.id))
+    .run();
+
+  const endpoint = (await import('../tgcloud/endpoints/adminAvatars.js')).default;
+  const result = await endpoint({}, ctxFor(ADMIN_ID));
+  const row = result.avatars.find((item) => item.id === target.id);
+  assert.ok(row, 'пользователь есть в ответе');
+  assert.match(row.photo, /^data:image\/jpeg;base64,AAAA$/, 'фото вернулось, хотя обновлять его не нужно');
+  assert.ok(result.avatars.length >= 2, 'отдаём всех, а не только обновлённых');
 });
 
 console.log('\nЗаявки и уведомления');
