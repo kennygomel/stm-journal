@@ -1,3 +1,38 @@
+/* Шрифты Dusk: Wix Madefor Display для заголовков и Wix Madefor Text для тела.
+   Файлы лежат локально (public/fonts/wix), чтобы Mini App не зависел от Google. */
+@font-face {
+  font-family: 'Wix Madefor Display';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url(/fonts/wix/wix-display-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Wix Madefor Display';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url(/fonts/wix/wix-display-cyrillic.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Wix Madefor Text';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url(/fonts/wix/wix-text-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Wix Madefor Text';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url(/fonts/wix/wix-text-cyrillic.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
 /* Знак белорусского рубля (шрифт НБРБ).
    Файлы лежат в public/fonts и после сборки раздаются с /fonts/…
    unicode-range: шрифт подгружается только для знака U+E901 (PUA),
@@ -33,37 +68,57 @@
 
 /* ---------------------------------------------------------------- токены */
 /*
-   Палитра взята из логотипа: три волны #64C3E5 → #1F94BF → #37576D
-   и чернила STM #142F46. Акцент — средняя волна, тёмная тема растёт из
-   глубокой воды #0B1B2B.
+   Тема Dusk (Hallmark): сумеречный сланец и костяные «колодцы» для светлых
+   поверхностей, один сигнальный перивинкль и один абрикос.
+   Токены переведены из OKLCH в hex, чтобы не зависеть от поддержки oklch
+   в старых WebView Telegram. Оригинальные значения — в skills/hallmark.
+
+   Смысл цветов:
+   · перивинкль (accent) — сделано, совпало, активно;
+   · абрикос (accent-2) — открыто, ждёт, к доплате;
+   · красный не используется как заливка: только тонкий контур для опасных
+     действий, и то терракотовым.
 */
 :root {
   color-scheme: light;
 
-  /* поверхности */
-  --bg: #f2f7fb;
-  --surface: #ffffff;
-  --surface-sunken: #e7f0f7;
-  --surface-deep: #dceaf4;
-  --text: #142f46;
-  --hint: #5c7891;
-  --divider: rgba(20, 47, 70, 0.1);
-  --divider-strong: rgba(20, 47, 70, 0.18);
+  /* поверхности: костяные колодцы на тумане */
+  --bg: #f1eae3;
+  --surface: #fffdfb;
+  --surface-sunken: #f3efea;
+  --surface-deep: #e9e4dd;
+  --text: #151820;
+  --hint: #565b64;
+  --divider: #e4dfd8;
+  --divider-strong: #d9d5cf;
 
-  /* бренд */
-  --accent: #1f94bf;
-  --accent-strong: #157a9e;
-  --accent-text: #ffffff;
-  --accent-soft: rgba(31, 148, 191, 0.12);
-  --brand-light: #64c3e5;
-  --brand-mid: #1f94bf;
-  --brand-deep: #37576d;
-  --brand-ink: #142f46;
+  /* сигналы */
+  --accent: #3e4999;
+  --accent-strong: #333c85;
+  --accent-text: #f4f1ed;
+  --accent-soft: rgba(62, 73, 153, 0.1);
+  --accent-2: #b5722f;
+  --accent-2-soft: rgba(244, 186, 135, 0.28);
 
-  --positive: #0f7a56;
-  --danger: #c0392b;
-  --focus: rgba(31, 148, 191, 0.4);
-  --header: rgba(242, 247, 251, 0.86);
+  /* бренд: волна логотипа, переведённая в перивинкль */
+  --brand-light: #a0b0f4;
+  --brand-mid: #3e4999;
+  --brand-deep: #151820;
+  --brand-ink: #151820;
+
+  --positive: #2f7a5c;
+  --danger: #b4523f;
+  --focus: rgba(62, 73, 153, 0.35);
+  --header: rgba(241, 234, 227, 0.86);
+
+  /* стекло: дымчатая поверхность со светлой кромкой */
+  --glass: rgba(255, 253, 251, 0.7);
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 24px 48px -32px rgba(21, 24, 32, 0.35);
+
+  --font-display: 'Wix Madefor Display', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Wix Madefor Text', ui-sans-serif, system-ui, sans-serif;
+  --tracking-display: -0.022em;
 
   /* шаг 4px: 4 · 8 · 12 · 16 · 24 · 32 */
   --s1: 4px;
@@ -74,35 +129,41 @@
   --s8: 32px;
 
   --r-sm: 10px;
-  --r-md: 14px;
-  --r-lg: 20px;
+  --r-md: 18px;
+  --r-lg: 24px;
 
   --t: 160ms;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Тёмная тема — глубокая вода из логотипа. */
+/* Тёмная тема — сумеречный сланец. */
 html[data-theme='dark'] {
   color-scheme: dark;
 
-  --bg: #0b1b2b;
-  --surface: #12293d;
-  --surface-sunken: #17324a;
-  --surface-deep: #1d3d59;
-  --text: #eaf3f9;
-  --hint: #93aec2;
-  --divider: rgba(234, 243, 249, 0.1);
-  --divider-strong: rgba(234, 243, 249, 0.2);
+  --bg: #0e1017;
+  --surface: #151820;
+  --surface-sunken: #1e212a;
+  --surface-deep: #262a34;
+  --text: #f4f1ed;
+  --hint: #999fa9;
+  --divider: #2a2e36;
+  --divider-strong: #3a3f4a;
 
-  --accent: #3fb0d8;
-  --accent-strong: #64c3e5;
-  --accent-text: #06202e;
-  --accent-soft: rgba(63, 176, 216, 0.18);
+  --accent: #a0b0f4;
+  --accent-strong: #b9c7ff;
+  --accent-text: #0f1223;
+  --accent-soft: rgba(160, 176, 244, 0.16);
+  --accent-2: #f4ba87;
+  --accent-2-soft: rgba(244, 186, 135, 0.18);
 
-  --positive: #4fd1a5;
-  --danger: #ff7a6b;
-  --focus: rgba(63, 176, 216, 0.45);
-  --header: rgba(11, 27, 43, 0.86);
+  --positive: #97ccae;
+  --danger: #e08a78;
+  --focus: rgba(169, 185, 255, 0.45);
+  --header: rgba(14, 16, 23, 0.82);
+
+  --glass: rgba(21, 24, 32, 0.62);
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 32px 64px -40px rgba(0, 0, 0, 0.8);
 }
 
 /* «Как в системе»: пока атрибута нет, решает медиазапрос. */
@@ -110,24 +171,30 @@ html[data-theme='dark'] {
   :root:not([data-theme]) {
     color-scheme: dark;
 
-    --bg: #0b1b2b;
-    --surface: #12293d;
-    --surface-sunken: #17324a;
-    --surface-deep: #1d3d59;
-    --text: #eaf3f9;
-    --hint: #93aec2;
-    --divider: rgba(234, 243, 249, 0.1);
-    --divider-strong: rgba(234, 243, 249, 0.2);
+    --bg: #0e1017;
+    --surface: #151820;
+    --surface-sunken: #1e212a;
+    --surface-deep: #262a34;
+    --text: #f4f1ed;
+    --hint: #999fa9;
+    --divider: #2a2e36;
+    --divider-strong: #3a3f4a;
 
-    --accent: #3fb0d8;
-    --accent-strong: #64c3e5;
-    --accent-text: #06202e;
-    --accent-soft: rgba(63, 176, 216, 0.18);
+    --accent: #a0b0f4;
+    --accent-strong: #b9c7ff;
+    --accent-text: #0f1223;
+    --accent-soft: rgba(160, 176, 244, 0.16);
+    --accent-2: #f4ba87;
+    --accent-2-soft: rgba(244, 186, 135, 0.18);
 
-    --positive: #4fd1a5;
-    --danger: #ff7a6b;
-    --focus: rgba(63, 176, 216, 0.45);
-    --header: rgba(11, 27, 43, 0.86);
+    --positive: #97ccae;
+    --danger: #e08a78;
+    --focus: rgba(169, 185, 255, 0.45);
+    --header: rgba(14, 16, 23, 0.82);
+
+    --glass: rgba(21, 24, 32, 0.62);
+    --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 32px 64px -40px rgba(0, 0, 0, 0.8);
   }
 }
 
@@ -145,9 +212,9 @@ body {
   padding: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
+  font-family: var(--font-body);
   font-size: 16px;
-  line-height: 1.45;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
@@ -344,17 +411,17 @@ body {
   height: 15px;
   object-fit: contain;
   flex-shrink: 0;
-  /* на тёмном фоне тёмная волна теряется — поднимаем светлоту */
-  filter: var(--mark-filter, none);
+  /* Dusk: волна логотипа уходит из бирюзы в перивинкль темы */
+  filter: var(--mark-filter, hue-rotate(62deg) saturate(0.82) brightness(1.02));
 }
 
 html[data-theme='dark'] .brand-mark {
-  --mark-filter: brightness(1.35) saturate(1.05);
+  --mark-filter: hue-rotate(62deg) saturate(0.85) brightness(1.2);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) .brand-mark {
-    filter: brightness(1.35) saturate(1.05);
+    filter: hue-rotate(62deg) saturate(0.85) brightness(1.2);
   }
 }
 
@@ -1956,4 +2023,257 @@ html[data-theme='dark'] .brand-mark {
 
 .toast.error {
   background: var(--danger);
+}
+
+/* ------------------------------------------------------------------ Dusk */
+/*
+   Слой темы Dusk: сумеречный сланец, дымчатое стекло со светлой кромкой,
+   один перивинкль как сигнал «готово» и абрикос как «ждёт».
+   Всё ниже опирается только на токены из :root.
+*/
+
+h1,
+h2,
+h3,
+.sheet h2,
+.card-title,
+.section-title,
+.journal-name,
+.driver-row .journal-name {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: var(--tracking-display);
+}
+
+/* Стеклянные поверхности: карточки и шторка. */
+.card {
+  background: var(--glass);
+  border: 1px solid var(--divider);
+  border-radius: var(--r-md);
+  box-shadow: var(--glass-edge), var(--shadow-card);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+}
+
+.sheet {
+  background: var(--surface);
+  border-top: 1px solid var(--divider-strong);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  box-shadow: var(--glass-edge), 0 -24px 64px -32px rgba(0, 0, 0, 0.6);
+}
+
+/* Шапка: сланец, тонкая линия вместо брендового градиента. */
+.topbar {
+  background: var(--header);
+  border-bottom: 1px solid var(--divider);
+}
+
+.topbar::after {
+  height: 1px;
+  background: var(--divider-strong);
+  opacity: 1;
+}
+
+.topbar h1,
+.title-stack h1 {
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: var(--tracking-display);
+}
+
+/* Кнопки-пилюли: перивинкль как заливка, светлая кромка сверху. */
+.btn {
+  min-height: 48px;
+  padding: 0 var(--s4);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 14.5px;
+  transition: background var(--t) var(--ease), border-color var(--t) var(--ease), color var(--t) var(--ease);
+}
+
+.btn.primary {
+  background: var(--accent);
+  color: var(--accent-text);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, #ffffff 35%, transparent);
+}
+
+.btn.primary:hover {
+  background: var(--accent-strong);
+}
+
+.btn.ghost {
+  background: transparent;
+  border-color: var(--divider-strong);
+  color: var(--text);
+}
+
+.btn.ghost:hover {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.btn.danger {
+  background: transparent;
+  border-color: color-mix(in oklab, var(--danger) 45%, transparent);
+  color: var(--danger);
+}
+
+.btn.danger:hover {
+  border-color: var(--danger);
+  background: color-mix(in oklab, var(--danger) 10%, transparent);
+}
+
+.btn-add {
+  border-radius: 999px;
+}
+
+/* Чипы-фильтры: призрачные пилюли, активная — перивинкль. */
+.chip {
+  border-radius: 999px;
+  border: 1px solid var(--divider-strong);
+  background: transparent;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.chip.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+/* Нижняя навигация: сланец-стекло и точка вместо полоски у активного. */
+.bottom-nav {
+  background: color-mix(in oklab, var(--bg) 82%, transparent);
+  border-top: 1px solid var(--divider);
+}
+
+.nav-item.active::before {
+  top: 2px;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+  border-radius: 50%;
+  background: var(--accent-2);
+}
+
+.nav-item.active {
+  color: var(--accent-strong);
+}
+
+/* Выбор темы: пилюля на стекле. */
+.theme-select {
+  background: var(--glass);
+  border-color: var(--divider-strong);
+}
+
+/* Поля: колодец, а не белая плитка. */
+.field input,
+.field select,
+.field-inline,
+.field-prefixed {
+  background: var(--surface-sunken);
+  border-color: var(--divider-strong);
+  border-radius: var(--r-sm);
+}
+
+.field input:focus,
+.field select:focus,
+.field-inline:focus-within,
+.field-prefixed:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+/* Подписи и служебный текст: без капса и разрядки. */
+.section-title,
+.list-head {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--hint);
+}
+
+/* Цифры: дисплейный шрифт, табличные, копейки не поднимаем. */
+.summary-amount,
+.balance-amount,
+.stat .value,
+.example-amount,
+.journal-income {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: var(--tracking-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.balance-amount {
+  font-size: 38px;
+  line-height: 1.05;
+}
+
+.summary-amount {
+  font-size: 36px;
+  line-height: 1.05;
+}
+
+/* Абрикос — «ждёт решения» и доплаты, перивинкль — «готово». */
+.badge,
+.nav-badge {
+  background: var(--accent-2);
+  color: #2a1a0a;
+}
+
+.bonus-note,
+.trip-bonus {
+  color: var(--accent-2);
+}
+
+.stat-accent {
+  background: var(--glass);
+}
+
+/* Графики и полоски: один сигнальный цвет, без градиентов. */
+.chart-bar {
+  fill: var(--accent);
+  opacity: 0.9;
+}
+
+.driver-bar {
+  background: var(--surface-sunken);
+}
+
+.driver-bar-fill {
+  background: var(--accent);
+}
+
+.tab.active {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--accent-text);
+}
+
+/* Предпросмотр дохода — стеклянный колодец. */
+.preview {
+  background: var(--surface-sunken);
+  border: 1px solid var(--divider);
+  border-radius: var(--r-sm);
+}
+
+/* Заголовок «Рейтинг»: призы не превращаем в иконки, это эмодзи-награды. */
+.board-place {
+  font-family: var(--font-display);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bottom-nav,
+  .topbar,
+  .card,
+  .btn,
+  .chip {
+    transition: none;
+  }
 }

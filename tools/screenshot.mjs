@@ -32,6 +32,7 @@ const SCREEN = flag('screen', 'journal');
 const OUT = flag('out', '/tmp/dscreen.png');
 const HEIGHT = Number(flag('height', 1000));
 const HIDE_NAV = has('hide-nav');
+const THEME = flag('theme', null);
 const PROFILE = flag('profile', '/tmp/dsh-shot-profile');
 
 const TYPES = {
@@ -214,6 +215,10 @@ await new Promise((resolve) => setTimeout(resolve, 1200));
 if (SCREEN) {
   await send('Runtime.evaluate', { expression: `(location.hash = '#${SCREEN}', null)` });
   await new Promise((resolve) => setTimeout(resolve, 900));
+}
+if (THEME) {
+  await send('Runtime.evaluate', { expression: `(() => { document.documentElement.dataset.theme = '${THEME}'; localStorage.setItem('stm.theme', '${THEME}'); return document.documentElement.dataset.theme; })()` });
+  await new Promise((resolve) => setTimeout(resolve, 250));
 }
 if (HIDE_NAV) {
   await send('Runtime.evaluate', { expression: `(document.querySelector('.bottom-nav')?.remove(), null)` });
