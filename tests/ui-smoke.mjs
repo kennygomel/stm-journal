@@ -373,10 +373,19 @@ const handlers = {
   adminStats: async () => ({
     period: { from: '2026-10-01', to: '2026-10-15' },
     users: { total: 7, approved: 5, pending: 1, denied: 1, admins: 2 },
-    trips: { count: 48, journals: 3, workingDays: 26, income: 480000, daysBonus: 15000, total: 495000, avgIncome: 10000, daysMin: 23 },
+    trips: {
+      count: 48, journals: 3, workingDays: 26, income: 480000, daysBonus: 15000, kmBonus: 2000,
+      total: 497000, avgIncome: 10000, distance: 9200, daysMin: 23, monthKmFree: 10000,
+    },
+    previous: { from: '2026-09-01', to: '2026-09-30', income: 400000, trips: 40 },
+    byDate: [
+      { date: '2026-10-01', income: 12000, trips: 2 },
+      { date: '2026-10-05', income: 45000, trips: 3 },
+      { date: '2026-10-14', income: 200000, trips: 4 },
+    ],
     journals: [
-      { userId: 4, name: 'Торнике', username: 'nik_nagibatel', trips: 20, income: 200000, days: 9, lastDate: '2026-10-14' },
-      { userId: 5, name: 'Александрович', username: null, trips: 18, income: 180000, days: 8, lastDate: '2026-10-13' },
+      { userId: 4, name: 'Торнике', username: 'nik_nagibatel', trips: 20, income: 200000, daysBonus: 15000, monthKmBonus: 2000, total: 217000, days: 9, distance: 12000, lastDate: '2026-10-14' },
+      { userId: 5, name: 'Александрович', username: null, trips: 18, income: 180000, daysBonus: 0, monthKmBonus: 0, total: 180000, days: 8, distance: 5000, lastDate: '2026-10-13' },
     ],
   }),
   adminRecalc: async (payload = {}) => {
@@ -931,33 +940,29 @@ await check('дашборд админки: сводка, заявки и упр
   assert.match(text, /Записи за месяц/, 'метрика записей');
   assert.match(text, /Доход за месяц/, 'метрика дохода');
   assert.match(text, /48/, 'число записей из сводки');
-  assert.match(text, /Торнике/, 'журнал подписан именем владельца');
+  assert.match(text, /Торнике/, 'водитель подписан именем');
   assert.match(text, /@nik_nagibatel/, 'видно username');
-  assert.match(text, /Записи/, 'статистика журнала построчно: записи');
-  assert.match(text, /Рабочих дней/, 'статистика журнала построчно: дни');
-  assert.match(text, /Последняя/, 'статистика журнала построчно: последняя дата');
-  assert.match(text, /2\s?000/, 'доход журнала');
+  assert.match(text, /12000 км|12\s?000 км/, 'пробег водителя');
+  assert.match(text, /2\s?170/, 'доход водителя с месячными доплатами');
+  assert.match(text, /Доход по дням/, 'график по дням');
+  assert.match(text, /Водители за месяц/, 'блок водителей');
+  assert.match(text, /\+24% к прошлому месяцу|\+2\d% к прошлому месяцу/, 'динамика к прошлому месяцу');
   assert.match(text, /Одобрить или отклонить/, 'переход к заявкам');
 
-  const lines = appNode().findAll((node) => node.classList.contains('stat-line'));
-  assert.ok(lines.length >= 3, 'строки статистики отдельными элементами');
-  const row = appNode().find((node) => node.classList.contains('journal-row'));
-  assert.ok(row, 'карточка журнала');
-  assert.ok(row.find((node) => node.classList.contains('journal-income')), 'доход отдельной колонкой');
+  const chart = appNode().findAll((node) => node.classList.contains('chart-svg'));
+  assert.equal(chart.length, 1, 'один svg-график');
+  assert.ok((chart[0].children || []).length >= 3, 'в графике есть столбики');
+  const bars = chart[0].findAll ? chart[0].findAll((node) => node.classList.contains('chart-bar')) : [];
+  assert.ok(bars.length >= 3, 'столбики по дням');
 
-  // статистика — не в колонке рядом с суммой, а на всю ширину карточки
-  assert.ok(row.find((node) => node.classList.contains('journal-head')), 'шапка: имя и доход в одной строке');
-  const stats = row.find((node) => node.classList.contains('journal-stats'));
-  assert.ok(stats, 'блок статистики');
-  assert.ok(!stats.find((node) => node.classList.contains('journal-income')), 'сумма не внутри статистики');
-  assert.ok(!row.find((node) => node.classList.contains('journal-main'))?.find?.((n) => n.classList?.contains('journal-stats')),
-    'статистика вынесена из колонки имени');
+  const drivers = appNode().findAll((node) => node.classList.contains('driver-row'));
+  assert.equal(drivers.length, 2, 'строка на каждого водителя');
+  assert.ok(drivers[0].find((node) => node.classList.contains('driver-bar-fill')), 'полоска доли дохода');
 
   const { readFileSync } = await import('node:fs');
   const css = readFileSync('src/styles.css', 'utf8');
-  assert.match(css, /\.journal-row \{[^}]*border-bottom: 1px solid var\(--divider\)/s, 'у строк журналов лёгкий бордер снизу');
-  assert.match(css, /\.journal-row:last-child \{[^}]*border-bottom: 0/s, 'у последней строки линии нет');
-  assert.match(css, /\.journal-stats \{[^}]*flex-direction: column/s, 'статистика построчно на всю ширину');
+  assert.match(css, /\.driver-row \{[^}]*border-top: 1px solid var\(--divider\)/s, 'строки водителей разделены');
+  assert.match(css, /\.chart-svg \{[^}]*width: 100%/s, 'график тянется по ширине');
   assert.match(text, /Управление/, 'блок управления');
   assert.ok(!/Служебное/.test(text), 'блок «Служебное» убран');
   assert.ok(!/Ваш Telegram ID/.test(text), 'служебный текст убран');
@@ -966,7 +971,7 @@ await check('дашборд админки: сводка, заявки и упр
   const statsTop = appNode().find((node) => node.classList.contains('stats'))?.getBoundingClientRect?.().top;
   const title = appNode().findAll((node) => node.classList.contains('section-title')).map((n) => n.textContent);
   const manageIndex = title.findIndex((t) => /Управление/.test(t));
-  const journalsIndex = title.findIndex((t) => /Журналы/.test(t));
+  const journalsIndex = title.findIndex((t) => /Водители/.test(t));
   assert.ok(manageIndex > journalsIndex, '«Управление» идёт после блоков дашборда');
 });
 

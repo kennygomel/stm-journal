@@ -121,9 +121,12 @@ export const trips = table(
     kmRate: integer('km_rate').notNull().default(0),
     hoursFree: integer('hours_free').notNull().default(0),
     hourRate: integer('hour_rate').notNull().default(0),
-    // Доплата за дни месяца входит в доход ровно один раз: только у последней
-    // записи месяца, если рабочих дней в нём не меньше лимита.
+    // Месячные доплаты входят в доход ровно один раз — у последней записи
+    // месяца в журнале конкретного водителя:
+    //   daysBonus    — по таблице рабочих дней;
+    //   monthKmBonus — 1 копейка за км сверх 10 000 км за месяц.
     daysBonus: integer('days_bonus').notNull().default(0),
+    monthKmBonus: integer('month_km_bonus').notNull().default(0),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
     updatedAt: integer('updated_at', { mode: 'timestamp' }),
   },

@@ -54,8 +54,8 @@ export function reportView(root) {
             ? el('div', { class: 'summary-sub' }, [
                 'рейсы ',
                 ...fmtMoney(totals.income),
-                ' + дни ',
-                ...fmtMoney(totals.daysBonus),
+                ' + доплаты ',
+                ...fmtMoney(totals.daysBonus + (totals.kmBonus || 0)),
               ])
             : null,
           el('div', { class: 'balance-foot' }, [
@@ -79,6 +79,9 @@ export function reportView(root) {
                     `Рабочих дней: ${fmtNumber(totals.workingDays)} — доплата с ${fmtNumber(totals.daysMin ?? 23)} дней`,
                   ],
             )
+          : null,
+        totals.kmBonus
+          ? el('div', { class: 'balance-days' }, ['Доплата за месячный пробег — ', ...fmtMoney(totals.kmBonus)])
           : null,
       ],
       'card balance',

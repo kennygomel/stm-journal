@@ -311,6 +311,8 @@ export function journalView(root, ctx) {
   function renderSummary() {
     const income = state.trips.reduce((sum, trip) => sum + trip.income, 0);
     const daysBonus = state.trips.reduce((sum, trip) => sum + (trip.daysBonus || 0), 0);
+    const kmBonus = state.trips.reduce((sum, trip) => sum + (trip.monthKmBonus || 0), 0);
+    const bonuses = daysBonus + kmBonus;
     const points = state.trips.reduce((sum, trip) => sum + trip.points, 0);
     const km = state.trips.reduce((sum, trip) => sum + trip.distance, 0);
     const hours = state.trips.reduce((sum, trip) => sum + trip.hours, 0);
@@ -318,14 +320,16 @@ export function journalView(root, ctx) {
       el('div', { class: 'summary-main' }, [
         el('div', { class: 'summary-label' }, [
           'Доход за период',
-          daysBonus ? el('span', { class: 'bonus-note' }, ' · с доплатой за дни') : null,
+          bonuses ? el('span', { class: 'bonus-note' }, ' · с месячными доплатами') : null,
         ]),
         (() => {
           const amount = el('div', { class: 'summary-amount' });
-          animateMoney(amount, income + daysBonus);
+          animateMoney(amount, income + bonuses);
           return amount;
         })(),
-        daysBonus ? el('div', { class: 'summary-sub' }, ['рейсы ', ...fmtMoney(income), ' + дни ', ...fmtMoney(daysBonus)]) : null,
+        bonuses
+          ? el('div', { class: 'summary-sub' }, ['рейсы ', ...fmtMoney(income), ' + доплаты ', ...fmtMoney(bonuses)])
+          : null,
       ]),
       el('div', { class: 'summary-meta' }, [
         metric('trip', fmtNumber(state.trips.length)),
@@ -418,6 +422,7 @@ function tripRow(root, ctx, trip) {
       ...details.map((text) => el('span', { text })),
       ...over.map((text) => el('span', { class: 'trip-over', text })),
       trip.daysBonus ? el('span', { class: 'trip-bonus' }, ['+', ...fmtMoney(trip.daysBonus), ' за дни']) : null,
+      trip.monthKmBonus ? el('span', { class: 'trip-bonus' }, ['+', ...fmtMoney(trip.monthKmBonus), ' за пробег']) : null,
     ]),
     el('div', { class: 'trip-actions' }, [
       button('Изменить', { className: 'btn ghost', onClick: () => openTripForm(root, ctx, trip) }),

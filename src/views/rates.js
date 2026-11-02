@@ -8,6 +8,7 @@ import { api } from '../api.js';
 import { button, card, el, field, input, sectionTitle, sheet, toast } from '../dom.js';
 import { bynSign, fmtMoney, fmtNumber, intInput, moneyInput, plural } from '../format.js';
 import { DAYS_BONUS_MIN, daysBonusRows } from '../days.js';
+import { MONTH_KM_FREE, MONTH_KM_RATE } from '../month-km.js';
 import { haptic } from '../telegram.js';
 
 /** Поля тарифов: деньги — в рублях, лимиты — целые. */
@@ -80,6 +81,11 @@ export function ratesView(root, ctx) {
         rateRow('Часов в лимите', `${fmtNumber(settings.hoursFree)} ч`, 'включено в базовую ставку'),
         rateRow('За 4 часа сверх лимита', fmtMoney(settings.hourRate), 'за каждые полные 4 часа'),
         rateRow('Доплата за дни', `с ${DAYS_BONUS_MIN} дней`, 'по таблице ниже'),
+        rateRow(
+          'Месячный пробег водителя',
+          `${fmtNumber(MONTH_KM_FREE)} км`,
+          `свыше — ${MONTH_KM_RATE} коп. за км`,
+        ),
       ]),
       button('Изменить тарифы', { className: 'btn primary btn-block', onClick: () => openForm(settings) }),
       sectionTitle('Пример'),

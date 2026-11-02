@@ -3,7 +3,7 @@
 import { db, EndpointError } from 'sdk';
 import { and, asc, eq, gte, inArray, like, lte, sql } from 'sdk/db';
 import { customers, trips, users as usersTable } from '../schema.js';
-import { DAYS_BONUS_MIN, calcTrip, daysBonusFor, getSettings, monthOf, ratesSnapshot, resolveRates } from './calc.js';
+import { DAYS_BONUS_MIN, MONTH_KM_FREE, calcTrip, daysBonusFor, getSettings, monthKmBonusFor, monthOf, ratesSnapshot, resolveRates } from './calc.js';
 import { displayName, isIsoDate, parseInteger } from './format.js';
 
 /** Сериализация записи для Mini App (деньги — рубли). */
@@ -18,6 +18,7 @@ export function toTripDto(row) {
     hours: row.hours,
     income: row.income,
     daysBonus: row.daysBonus || 0,
+    monthKmBonus: row.monthKmBonus || 0,
     rates: {
       baseRate: row.baseRate,
       pointsFree: row.pointsFree,
@@ -134,7 +135,7 @@ export async function createTrip(user, input) {
   };
   const inserted = await db.insert(trips).values(values).returning();
   // Доплата за дни месяца зависит от всех записей месяца — переставляем её.
-  await syncMonthDaysBonus(user.id, monthOf(parsed.date));
+  await syncMonthBonuses(user.id, monthOf(parsed.date));
   const fresh = await db.select().from(trips).where(eq(trips.id, inserted[0].id)).get();
   return toTripDto(fresh || inserted[0]);
 }
@@ -169,7 +170,7 @@ export async function updateTrip(user, input) {
   // Месяц мог смениться при правке даты — переставляем доплату за дни
   // и в старом, и в новом месяце.
   const months = [...new Set([monthOf(parsed.date), monthOf(existing.tripDate)].filter(Boolean))];
-  for (const month of months) await syncMonthDaysBonus(user.id, month);
+  for (const month of months) await syncMonthBonuses(user.id, month);
 
   const fresh = await db.select().from(trips).where(eq(trips.id, id)).get();
   return toTripDto(fresh || rows[0]);
@@ -189,7 +190,7 @@ export async function deleteTrip(user, tripId) {
   await db.delete(trips).where(and(eq(trips.id, id), eq(trips.userId, user.id))).run();
 
   // Месяц мог лишиться последней записи — доплату за дни переставляем.
-  await syncMonthDaysBonus(user.id, monthOf(existing.tripDate));
+  await syncMonthBonuses(user.id, monthOf(existing.tripDate));
   return { id };
 }
 
@@ -203,6 +204,7 @@ export async function report(userId, range) {
   const byCustomer = new Map();
   let income = 0;
   let daysBonus = 0;
+  let kmBonus = 0;
   let points = 0;
   let distance = 0;
   let hours = 0;
@@ -213,6 +215,7 @@ export async function report(userId, range) {
     const breakdown = tripBreakdown(row);
     income += row.income;
     daysBonus += row.daysBonus || 0;
+    kmBonus += row.monthKmBonus || 0;
     points += row.points;
     distance += row.distance;
     hours += row.hours;
@@ -246,8 +249,9 @@ export async function report(userId, range) {
     totals: {
       trips: rows.length,
       income,
-      total: income + daysBonus,
+      total: income + daysBonus + kmBonus,
       daysBonus,
+      kmBonus,
       workingDays,
       daysMin: DAYS_BONUS_MIN,
       points,
@@ -316,41 +320,47 @@ export async function workingDaysInMonth(userId, month) {
  *
  * @returns {Promise<number>} сумма проставленной доплаты (0, если лимит не набран)
  */
-export async function syncMonthDaysBonus(userId, month) {
+export async function syncMonthBonuses(userId, month) {
   const rows = await db
     .select()
     .from(trips)
     .where(and(eq(trips.userId, userId), like(trips.tripDate, `${month}-%`)))
     .orderBy(asc(trips.tripDate), asc(trips.id))
     .all();
-  if (!rows.length) return 0;
+  if (!rows.length) return { daysBonus: 0, monthKmBonus: 0 };
 
+  // Всё считается по журналу ОДНОГО водителя: дни — его разные даты,
+  // пробег — сумма его километров за месяц.
   const days = new Set(rows.map((row) => row.tripDate)).size;
-  const bonus = daysBonusFor(days);
+  const daysBonus = daysBonusFor(days);
+  const distance = rows.reduce((sum, row) => sum + (row.distance || 0), 0);
+  const monthKmBonus = monthKmBonusFor(distance);
   const lastId = rows[rows.length - 1].id;
 
   await Promise.all(
     rows
-      .filter((row) => (row.daysBonus || 0) !== (row.id === lastId ? bonus : 0))
-      .map((row) =>
-        db
+      .map((row) => {
+        const isLast = row.id === lastId;
+        const nextDays = isLast ? daysBonus : 0;
+        const nextKm = isLast ? monthKmBonus : 0;
+        if ((row.daysBonus || 0) === nextDays && (row.monthKmBonus || 0) === nextKm) return null;
+        return db
           .update(trips)
-          .set({ daysBonus: row.id === lastId ? bonus : 0 })
+          .set({ daysBonus: nextDays, monthKmBonus: nextKm })
           .where(and(eq(trips.id, row.id), eq(trips.userId, userId)))
-          .run(),
-      ),
+          .run();
+      })
+      .filter(Boolean),
   );
-  return bonus;
+  return { daysBonus, monthKmBonus };
 }
 
 /** Пересчитывает доплату за дни во всех месяцах, которые пересекает диапазон. */
-async function syncDaysBonusInRange(userId, range) {
+async function syncMonthBonusesInRange(userId, range) {
   const clauses = [eq(trips.userId, userId), ...inRange(range)];
   const rows = await db.select({ date: trips.tripDate }).from(trips).where(and(...clauses)).all();
   const months = [...new Set(rows.map((row) => monthOf(row.tripDate)).filter(Boolean))];
-  let total = 0;
-  for (const month of months) total += await syncMonthDaysBonus(userId, month);
-  return total;
+  for (const month of months) await syncMonthBonuses(userId, month);
 }
 
 /**
@@ -455,7 +465,7 @@ export async function recalculateTrips(range, { userId = null, apply = false } =
   // Доход не включает доплату за дни — её ведём отдельно; если её проставили
   // или сняли, суммы записей поменялись и это нужно показать.
   if (apply) {
-    for (const bucket of users.keys()) await syncDaysBonusInRange(bucket, range);
+    for (const bucket of users.keys()) await syncMonthBonusesInRange(bucket, range);
   }
 
   return {
@@ -489,32 +499,104 @@ export async function recalculateTrips(range, { userId = null, apply = false } =
  * Возвращает только агрегаты — персональные данные внутри панели и так доступны
  * владельцу, но дашборду они не нужны.
  */
+/** Предыдущий календарный месяц для сравнения на дашборде. */
+function previousMonthRange(range) {
+  const from = range?.from;
+  if (!from || !/^\d{4}-\d{2}/.test(from)) return null;
+  const [year, month] = from.slice(0, 7).split('-').map(Number);
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear = month === 1 ? year - 1 : year;
+  const lastDay = new Date(Date.UTC(prevYear, prevMonth, 0)).getUTCDate();
+  const pad = (value) => String(value).padStart(2, '0');
+  return { from: `${prevYear}-${pad(prevMonth)}-01`, to: `${prevYear}-${pad(prevMonth)}-${pad(lastDay)}` };
+}
+
+/**
+ * Сводка для дашборда админки. Доплаты считаются по журналу каждого водителя
+ * и только потом суммируются — иначе месячные бонусы смешались бы между людьми.
+ */
 export async function dashboardStats(range) {
   const [rows, users] = await Promise.all([listTrips(null, range), db.select().from(usersTable).all()]);
 
   const byUser = new Map();
-  const byDate = new Set();
+  const byDate = new Map();
   let income = 0;
   let daysBonus = 0;
+  let kmBonus = 0;
+  let distance = 0;
+
   for (const row of rows) {
+    const dayBonus = (row.daysBonus || 0) + (row.monthKmBonus || 0);
     income += row.income;
     daysBonus += row.daysBonus || 0;
-    byDate.add(row.tripDate);
-    const bucket = byUser.get(row.userId) || { userId: row.userId, trips: 0, income: 0, days: new Set(), lastDate: row.tripDate };
+    kmBonus += row.monthKmBonus || 0;
+    distance += row.distance || 0;
+
+    const day = byDate.get(row.tripDate) || { date: row.tripDate, income: 0, trips: 0 };
+    day.income += row.income + dayBonus;
+    day.trips += 1;
+    byDate.set(row.tripDate, day);
+
+    const bucket =
+      byUser.get(row.userId) || {
+        userId: row.userId,
+        trips: 0,
+        income: 0,
+        daysBonus: 0,
+        kmBonus: 0,
+        distance: 0,
+        days: new Set(),
+        lastDate: row.tripDate,
+      };
     bucket.trips += 1;
     bucket.income += row.income;
+    bucket.daysBonus += row.daysBonus || 0;
+    bucket.kmBonus += row.monthKmBonus || 0;
+    bucket.distance += row.distance || 0;
     bucket.days.add(row.tripDate);
     if (row.tripDate > bucket.lastDate) bucket.lastDate = row.tripDate;
     byUser.set(row.userId, bucket);
   }
 
   const journalOwners = new Set(rows.map((row) => row.userId));
-  // Имя для заголовка журнала: подпись «Журнал #4» ничего не говорит владельцу.
   const people = new Map(users.map((row) => [row.id, row]));
   const statuses = users.reduce((acc, row) => {
     acc[row.status] = (acc[row.status] || 0) + 1;
     return acc;
   }, {});
+
+  const journals = [...byUser.values()]
+    .map((bucket) => {
+      const person = people.get(bucket.userId);
+      return {
+        userId: bucket.userId,
+        name: displayName(person || { id: bucket.userId, tgId: bucket.userId }),
+        username: person?.username || null,
+        trips: bucket.trips,
+        income: bucket.income,
+        daysBonus: bucket.daysBonus,
+        monthKmBonus: bucket.kmBonus,
+        total: bucket.income + bucket.daysBonus + bucket.kmBonus,
+        days: bucket.days.size,
+        distance: bucket.distance,
+        lastDate: bucket.lastDate,
+      };
+    })
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 8);
+
+  const previousRange = previousMonthRange(range);
+  let previous = null;
+  if (previousRange) {
+    const prevRows = await listTrips(null, previousRange);
+    const prevIncome = prevRows.reduce(
+      (sum, row) => sum + row.income + (row.daysBonus || 0) + (row.monthKmBonus || 0),
+      0,
+    );
+    previous = { ...previousRange, income: prevIncome, trips: prevRows.length };
+  }
+
+  const daily = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 
   return {
     period: { from: range?.from || null, to: range?.to || null },
@@ -526,31 +608,21 @@ export async function dashboardStats(range) {
       admins: users.filter((row) => row.isAdmin || row.isOwner).length,
     },
     trips: {
-      // count — число записей; total — деньги (доход рейсов + доплата за дни).
+      // count — число записей; total — деньги: рейсы + месячные доплаты.
       count: rows.length,
       journals: journalOwners.size,
       workingDays: byDate.size,
       income,
       daysBonus,
-      total: income + daysBonus,
+      kmBonus,
+      total: income + daysBonus + kmBonus,
       avgIncome: rows.length ? Math.round(income / rows.length) : 0,
+      distance,
       daysMin: DAYS_BONUS_MIN,
+      monthKmFree: MONTH_KM_FREE,
     },
-    journals: [...byUser.values()]
-      .map((bucket) => {
-        const person = people.get(bucket.userId);
-        return {
-          userId: bucket.userId,
-          // Имя — как в списке пользователей: имя, иначе @username, иначе ID.
-          name: displayName(person || { id: bucket.userId, tgId: bucket.userId }),
-          username: person?.username || null,
-          trips: bucket.trips,
-          income: bucket.income,
-          days: bucket.days.size,
-          lastDate: bucket.lastDate,
-        };
-      })
-      .sort((a, b) => b.trips - a.trips)
-      .slice(0, 8),
+    previous,
+    byDate: daily,
+    journals,
   };
 }

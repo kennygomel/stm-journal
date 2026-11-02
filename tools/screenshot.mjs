@@ -96,10 +96,20 @@ const HANDLERS = {
   adminStats: {
     period: { from: '2026-10-01', to: '2026-10-19' },
     users: { total: 7, approved: 5, pending: 1, denied: 1, admins: 2 },
-    trips: { count: 48, journals: 3, workingDays: 26, income: 480000, daysBonus: 15000, total: 495000, avgIncome: 10000 },
+    trips: {
+      count: 48, journals: 3, workingDays: 26, income: 480000, daysBonus: 15000, kmBonus: 2000,
+      total: 497000, avgIncome: 10000, distance: 9200, daysMin: 23, monthKmFree: 10000,
+    },
+    previous: { from: '2026-09-01', to: '2026-09-30', income: 400000, trips: 40 },
+    byDate: Array.from({ length: 19 }, (_, index) => ({
+      date: `2026-10-${String(index + 1).padStart(2, '0')}`,
+      income: [12000, 0, 34000, 18000, 45000, 0, 0, 22000, 31000, 0, 27000, 15000, 39000, 200000, 0, 0, 18000, 26000, 9000][index] || 0,
+      trips: 1 + (index % 3),
+    })),
     journals: [
-      { userId: 9, name: 'Торнике', username: 'nik_nagibatel', trips: 20, income: 200000, days: 26, lastDate: '2026-10-14' },
-      { userId: 4, name: 'Ignat Rychkov', username: 'ignatrychkov', trips: 18, income: 180000, days: 20, lastDate: '2026-10-13' },
+      { userId: 9, name: 'Торнике', username: 'nik_nagibatel', trips: 20, income: 200000, daysBonus: 15000, monthKmBonus: 2000, total: 217000, days: 26, distance: 12000, lastDate: '2026-10-14' },
+      { userId: 4, name: 'Ignat Rychkov', username: 'ignatrychkov', trips: 18, income: 180000, daysBonus: 0, monthKmBonus: 0, total: 180000, days: 20, distance: 5000, lastDate: '2026-10-13' },
+      { userId: 13, name: 'Дмитрий', username: 'brain_27', trips: 10, income: 100000, daysBonus: 0, monthKmBonus: 0, total: 100000, days: 12, distance: 2000, lastDate: '2026-10-12' },
     ],
   },
   adminRecalc: { from: '2026-10-01', to: '2026-10-19', applied: false, total: 1, changed: 1, incomeBefore: 100000, incomeAfter: 120000, delta: 20000, users: [], items: [] },

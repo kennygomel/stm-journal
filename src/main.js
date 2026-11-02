@@ -407,8 +407,105 @@ function statLine(label, value) {
   ]);
 }
 
-/** Блоки дашборда: люди, записи, журналы. */
+/** Процент изменения к прошлому месяцу для подписи под доходом. */
+function deltaText(current, previous) {
+  if (!previous) return null;
+  const diff = ((current - previous) / previous) * 100;
+  if (!Number.isFinite(diff)) return null;
+  const sign = diff > 0 ? '+' : '';
+  return `${sign}${diff.toFixed(0)}% к прошлому месяцу`;
+}
+
+/** Столбики дохода по дням: SVG без библиотек, ширина тянется по контейнеру. */
+function incomeChart(byDate) {
+  const values = byDate.map((row) => row.income);
+  const max = Math.max(1, ...values);
+  const width = 300;
+  const height = 96;
+  const gap = 2;
+  const barWidth = Math.max(2, (width - gap * Math.max(0, values.length - 1)) / Math.max(1, values.length));
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  svg.setAttribute('class', 'chart-svg');
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', 'Доход по дням месяца');
+
+  byDate.forEach((row, index) => {
+    // Дни без дохода не рисуем: иначе по базовой линии тянется ряд точек.
+    if (!row.income) return;
+    const barHeight = Math.max(2, Math.round((row.income / max) * (height - 6)));
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', String(index * (barWidth + gap)));
+    rect.setAttribute('y', String(height - barHeight));
+    rect.setAttribute('width', String(barWidth));
+    rect.setAttribute('height', String(barHeight));
+    rect.setAttribute('rx', '1.5');
+    rect.setAttribute('class', 'chart-bar');
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    title.textContent = `${fmtDate(row.date)}: ${fmtNumber(row.income / 100)} ₽`;
+    rect.append(title);
+    svg.append(rect);
+  });
+
+  return svg;
+}
+
+/** Карточка «Доход по дням» с датами по краям и максимумом. */
+function chartCard(stats) {
+  const byDate = stats.byDate || [];
+  if (!byDate.length) return null;
+  const max = Math.max(...byDate.map((row) => row.income));
+  const first = byDate[0];
+  const last = byDate[byDate.length - 1];
+
+  return card(
+    [
+      el('div', { class: 'chart-head' }, [
+        el('div', { class: 'chart-title', text: 'Доход по дням' }),
+        el('div', { class: 'chart-max' }, ['макс ', ...fmtMoney(max)]),
+      ]),
+      incomeChart(byDate),
+      el('div', { class: 'chart-axis' }, [
+        el('span', { text: fmtDate(first.date) }),
+        el('span', { class: 'muted', text: `${byDate.length} дн. с записями` }),
+        el('span', { text: fmtDate(last.date) }),
+      ]),
+    ],
+    'card chart-card',
+  );
+}
+
+/** Строка водителя: доход с месячными доплатами и полоска доли. */
+function driverRow(row, maxTotal, photos) {
+  const total = row.total ?? row.income ?? 0;
+  const share = maxTotal ? Math.round((total / maxTotal) * 100) : 0;
+  return el('div', { class: 'driver-row' }, [
+    el('div', { class: 'driver-head' }, [
+      el('div', { class: 'journal-person' }, [
+        avatar({ name: row.name, photo: photos[row.userId] || null, seed: row.userId, size: 'sm' }),
+        el('div', { class: 'journal-main' }, [
+          el('div', { class: 'journal-name', text: row.name }),
+          row.username ? el('div', { class: 'journal-user', text: `@${row.username}` }) : null,
+        ]),
+      ]),
+      el('div', { class: 'journal-income' }, fmtMoney(total)),
+    ]),
+    el('div', { class: 'driver-bar' }, [el('span', { class: 'driver-bar-fill', style: { width: `${share}%` } })]),
+    el('div', { class: 'driver-meta' }, [
+      `${fmtNumber(row.trips)} записей · ${fmtNumber(row.days)} дн. · ${fmtNumber(row.distance || 0)} км`,
+      row.daysBonus || row.monthKmBonus
+        ? ` · доплаты ${fmtNumber(((row.daysBonus || 0) + (row.monthKmBonus || 0)) / 100)} ₽`
+        : '',
+    ]),
+  ]);
+}
+
+/** Блоки дашборда: сводка, график, водители, заявки и управление. */
 function dashboardBlocks(stats, pending, photos = {}) {
+  const delta = deltaText(stats.trips.total, stats.previous?.income);
+  const kmBonus = stats.trips.kmBonus || 0;
+
   const blocks = [
     el('div', { class: 'stats' }, [
       el('div', { class: 'stat' }, [
@@ -439,9 +536,9 @@ function dashboardBlocks(stats, pending, photos = {}) {
           animateNumber(value, stats.trips.count);
           return value;
         })(),
-        el('div', { class: 'stat-foot' }, [`в среднем ${fmtNumber(stats.trips.avgIncome / 100)} ₽`]),
+        el('div', { class: 'stat-foot' }, [`${fmtNumber(stats.trips.distance || 0)} км`]),
       ]),
-      el('div', { class: 'stat' }, [
+      el('div', { class: 'stat stat-accent' }, [
         el('div', { class: 'label', text: 'Доход за месяц' }),
         (() => {
           const value = el('div', { class: 'value' });
@@ -449,11 +546,24 @@ function dashboardBlocks(stats, pending, photos = {}) {
           return value;
         })(),
         el('div', { class: 'stat-foot' }, [
-          stats.trips.daysBonus ? `включая дни ${fmtNumber(stats.trips.daysBonus / 100)} ₽` : 'без доплаты за дни',
+          delta || (kmBonus ? `включая пробег ${fmtNumber(kmBonus / 100)} ₽` : 'без месячных доплат'),
         ]),
       ]),
     ]),
   ];
+
+  const chart = chartCard(stats);
+  if (chart) blocks.push(chart);
+
+  if (stats.journals.length) {
+    const maxTotal = Math.max(...stats.journals.map((row) => row.total ?? row.income ?? 0), 1);
+    blocks.push(
+      sectionTitle('Водители за месяц'),
+      card(stats.journals.map((row) => driverRow(row, maxTotal, photos))),
+    );
+  } else {
+    blocks.push(sectionTitle('Водители за месяц'), placeholder('Пока нет записей', 'Записи появятся, когда водители внесут рейсы'));
+  }
 
   if (pending) {
     blocks.push(
@@ -472,36 +582,6 @@ function dashboardBlocks(stats, pending, photos = {}) {
         ]),
       ]),
     );
-  }
-
-  if (stats.journals.length) {
-    blocks.push(
-      sectionTitle('Журналы за месяц'),
-      card(
-        stats.journals.map((row) =>
-          el('div', { class: 'journal-row' }, [
-            el('div', { class: 'journal-head' }, [
-              el('div', { class: 'journal-person' }, [
-                avatar({ name: row.name, photo: photos[row.userId] || null, seed: row.userId, size: 'sm' }),
-                el('div', { class: 'journal-main' }, [
-                  el('div', { class: 'journal-name', text: row.name }),
-                  row.username ? el('div', { class: 'journal-user', text: `@${row.username}` }) : null,
-                ]),
-              ]),
-              el('div', { class: 'journal-income' }, fmtMoney(row.income)),
-            ]),
-            // Статистика на всю ширину карточки: значения прижаты к правому краю.
-            el('div', { class: 'journal-stats' }, [
-              statLine('Записи', fmtNumber(row.trips)),
-              statLine('Рабочих дней', fmtNumber(row.days)),
-              statLine('Последняя', row.lastDate ? fmtDate(row.lastDate) : '—'),
-            ]),
-          ]),
-        ),
-      ),
-    );
-  } else {
-    blocks.push(sectionTitle('Журналы за месяц'), placeholder('Пока нет записей', 'Записи появятся, когда users внесут рейсы'));
   }
 
   return blocks;

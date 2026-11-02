@@ -669,6 +669,127 @@ await test('без периода сводка берёт текущий мес�
   assert.match(stats.period.to, /^\d{4}-\d{2}-\d{2}$/);
 });
 
+console.log('\nМесячная доплата за пробег');
+
+await test('доплата за пробег: 1 копейка за км свыше 10 000', async () => {
+  const { monthKmBonusFor, MONTH_KM_FREE, MONTH_KM_RATE } = await import('../tgcloud/lib/calc.js');
+  assert.equal(MONTH_KM_FREE, 10000);
+  assert.equal(MONTH_KM_RATE, 1);
+  assert.equal(monthKmBonusFor(0), 0);
+  assert.equal(monthKmBonusFor(9999), 0, 'до лимита — ноль');
+  assert.equal(monthKmBonusFor(10000), 0, 'ровно лимит — ноль');
+  assert.equal(monthKmBonusFor(10001), 1, 'первый км сверх лимита');
+  assert.equal(monthKmBonusFor(12000), 2000, '2 000 км сверх лимита → 20 ₽');
+});
+
+await test('правило месячного пробега совпадает на клиенте и на сервере', async () => {
+  const server = await import('../tgcloud/lib/calc.js');
+  const client = await import('../src/month-km.js');
+  assert.equal(client.MONTH_KM_FREE, server.MONTH_KM_FREE, 'лимит совпадает');
+  assert.equal(client.MONTH_KM_RATE, server.MONTH_KM_RATE, 'ставка совпадает');
+  for (const km of [0, 9999, 10000, 10001, 12000, 20000]) {
+    assert.equal(client.monthKmBonusFor(km), server.monthKmBonusFor(km), `${km} км`);
+  }
+});
+
+await test('месячный пробег считается по каждому водителю отдельно', async () => {
+  const { customers } = await endpoints.adminCustomers({ action: 'list' }, ctxFor(ADMIN_ID));
+  const customer = customers[0];
+  const ids = [];
+
+  // водитель 555: 6 000 + 6 000 = 12 000 км за ноябрь → 20 ₽ доплаты
+  for (const [day, km] of [
+    ['2025-11-03', 6000],
+    ['2025-11-04', 6000],
+  ]) {
+    const result = await endpoints.createTrip(
+      { date: day, customerId: customer.id, points: 1, distance: km, hours: 1 },
+      ctxFor(555),
+    );
+    ids.push({ id: result.trip.id, ctx: ctxFor(555) });
+  }
+  // владелец: 9 000 км в том же месяце — до лимита, доплаты быть не должно
+  const ownerTrip = await endpoints.createTrip(
+    { date: '2025-11-05', customerId: customer.id, points: 1, distance: 9000, hours: 1 },
+    ctxFor(ADMIN_ID),
+  );
+  ids.push({ id: ownerTrip.trip.id, ctx: ctxFor(ADMIN_ID) });
+
+  const rider = await endpoints.listTrips({ from: '2025-11-01', to: '2025-11-30' }, ctxFor(555));
+  const bonusTrips = rider.trips.filter((trip) => trip.monthKmBonus > 0);
+  assert.equal(bonusTrips.length, 1, 'доплата стоит у одной записи');
+  assert.equal(bonusTrips[0].monthKmBonus, 2000, '12 000 км → 20 ₽');
+  assert.equal(bonusTrips[0].date, '2025-11-04', 'у последней записи месяца');
+
+  const owner = await endpoints.listTrips({ from: '2025-11-01', to: '2025-11-30' }, ctxFor(ADMIN_ID));
+  assert.ok(owner.trips.every((trip) => trip.monthKmBonus === 0), 'у второго водителя доплаты нет');
+
+  const report = await endpoints.report({ from: '2025-11-01', to: '2025-11-30' }, ctxFor(555));
+  assert.equal(report.totals.kmBonus, 2000);
+  assert.equal(report.totals.total, report.totals.income + report.totals.daysBonus + 2000);
+
+  // удаляем последнюю запись — доплата переезжает/снимается
+  const removedId = bonusTrips[0].id;
+  await endpoints.deleteTrip({ id: removedId }, ctxFor(555));
+  const after = await endpoints.listTrips({ from: '2025-11-01', to: '2025-11-30' }, ctxFor(555));
+  assert.equal(after.trips[0].monthKmBonus, 0, '6 000 км — без доплаты');
+
+  for (const row of ids) {
+    if (row.id !== removedId) await endpoints.deleteTrip({ id: row.id }, row.ctx);
+  }
+});
+
+await test('дашборд суммирует доплаты по водителям, а не по всем сразу', async () => {
+  const { customers } = await endpoints.adminCustomers({ action: 'list' }, ctxFor(ADMIN_ID));
+  const customer = customers[0];
+  const ids = [];
+  // 555: 12 000 км → +20 ₽; владелец: 9 000 км → 0; суммарные 21 000 не должны давать бонус
+  for (const [day, km] of [
+    ['2025-12-02', 6000],
+    ['2025-12-03', 6000],
+  ]) {
+    const result = await endpoints.createTrip(
+      { date: day, customerId: customer.id, points: 1, distance: km, hours: 1 },
+      ctxFor(555),
+    );
+    ids.push({ id: result.trip.id, ctx: ctxFor(555) });
+  }
+  const ownerTrip = await endpoints.createTrip(
+    { date: '2025-12-04', customerId: customer.id, points: 1, distance: 9000, hours: 1 },
+    ctxFor(ADMIN_ID),
+  );
+  ids.push({ id: ownerTrip.trip.id, ctx: ctxFor(ADMIN_ID) });
+
+  const stats = await endpoints.adminStats({ from: '2025-12-01', to: '2025-12-31' }, ctxFor(ADMIN_ID));
+  assert.equal(stats.trips.kmBonus, 2000, 'только у первого водителя');
+  const sumTotals = stats.journals.reduce((sum, row) => sum + row.total, 0);
+  assert.equal(sumTotals, stats.trips.total, 'итог = сумма итогов водителей');
+  const rider = stats.journals.find((row) => row.tgId === 555 || row.trips === 2);
+  assert.ok(rider, 'строка водителя есть');
+  assert.ok(stats.byDate.length >= 2, 'есть данные для графика по дням');
+
+  for (const row of ids) await endpoints.deleteTrip({ id: row.id }, row.ctx);
+});
+
+await test('пересчёт только доплат: доход рейсов не меняется', async () => {
+  const { customers } = await endpoints.adminCustomers({ action: 'list' }, ctxFor(ADMIN_ID));
+  const customer = customers[0];
+  const created = await endpoints.createTrip(
+    { date: '2025-10-07', customerId: customer.id, points: 1, distance: 11000, hours: 1 },
+    ctxFor(555),
+  );
+  const before = created.trip.income;
+  const endpoint = (await import('../tgcloud/endpoints/adminSyncBonuses.js')).default;
+  const result = await endpoint({ from: '2025-10-01', to: '2025-10-31' }, ctxFor(ADMIN_ID));
+  assert.ok(result.months >= 1, 'месяц пересчитан');
+  assert.equal(result.monthKmBonus, 1000, '11 000 км → 1 000 коп. доплаты');
+
+  const after = await endpoints.listTrips({ from: '2025-10-01', to: '2025-10-31' }, ctxFor(555));
+  assert.equal(after.trips[0].income, before, 'доход рейса не переписан');
+  assert.equal(after.trips[0].monthKmBonus, 1000, 'доплата проставлена');
+  await endpoints.deleteTrip({ id: created.trip.id }, ctxFor(555));
+});
+
 console.log('\nЛидерборд недели');
 
 await test('неделя начинается с понедельника', async () => {
