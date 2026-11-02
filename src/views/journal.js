@@ -373,7 +373,8 @@ export function journalView(root, ctx) {
   }
 
   root.append(
-    el('div', { class: 'journal-top' }, [summary, addButton]),
+    // Статистика и кнопка записи — в одном блоке с контуром, как баланс истории.
+    el('div', { class: 'card balance journal-panel' }, [summary, addButton]),
     el('div', { class: 'filters' }, [chips, rangeRow]),
     list,
   );

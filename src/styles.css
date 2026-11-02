@@ -82,15 +82,15 @@
 :root {
   color-scheme: light;
 
-  /* поверхности: костяные колодцы на тумане */
-  --bg: #f1eae3;
-  --surface: #fffdfb;
-  --surface-sunken: #f3efea;
-  --surface-deep: #e9e4dd;
+  /* поверхности: белая бумага, холодные серые колодцы */
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-sunken: #f4f5f7;
+  --surface-deep: #ebedf1;
   --text: #151820;
-  --hint: #565b64;
-  --divider: #e4dfd8;
-  --divider-strong: #d9d5cf;
+  --hint: #5a5f6b;
+  --divider: #e3e5ec;
+  --divider-strong: #d2d5e0;
 
   /* сигналы */
   --accent: #3e4999;
@@ -109,12 +109,12 @@
   --positive: #2f7a5c;
   --danger: #b4523f;
   --focus: rgba(62, 73, 153, 0.35);
-  --header: rgba(241, 234, 227, 0.86);
+  --header: rgba(255, 255, 255, 0.88);
 
   /* стекло: дымчатая поверхность со светлой кромкой */
-  --glass: rgba(255, 253, 251, 0.7);
+  --glass: rgba(255, 255, 255, 0.82);
   --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.6);
-  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 24px 48px -32px rgba(21, 24, 32, 0.35);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 1px 2px rgba(21, 24, 32, 0.04), 0 18px 40px -32px rgba(21, 24, 32, 0.3);
 
   --font-display: 'Wix Madefor Display', ui-sans-serif, system-ui, sans-serif;
   --font-body: 'Wix Madefor Text', ui-sans-serif, system-ui, sans-serif;
@@ -561,18 +561,6 @@ html[data-theme='dark'] .brand-mark {
 
 .nav-item.active {
   color: var(--accent-strong);
-}
-
-.nav-item.active::before {
-  content: '';
-  position: absolute;
-  top: -1px;
-  left: 50%;
-  width: 22px;
-  height: 2px;
-  margin-left: -11px;
-  border-radius: 2px;
-  background: var(--accent);
 }
 
 .nav-icon {
@@ -2076,7 +2064,7 @@ h3,
 
 .topbar h1,
 .title-stack h1 {
-  font-size: 20px;
+  font-size: 17px;
   font-weight: 500;
   letter-spacing: var(--tracking-display);
 }
@@ -2150,15 +2138,6 @@ h3,
   border-top: 1px solid var(--divider);
 }
 
-.nav-item.active::before {
-  top: 2px;
-  width: 5px;
-  height: 5px;
-  margin-left: -2.5px;
-  border-radius: 50%;
-  background: var(--accent-2);
-}
-
 .nav-item.active {
   color: var(--accent-strong);
 }
@@ -2213,11 +2192,29 @@ h3,
 .balance-amount {
   font-size: 38px;
   line-height: 1.05;
+  font-weight: 800;
 }
 
 .summary-amount {
   font-size: 36px;
   line-height: 1.05;
+  font-weight: 800;
+}
+
+/* Блок статистики журнала: та же карточка с контуром, что и баланс истории.
+   Внутри — без второй рамки и заливки, чтобы не было карточки в карточке. */
+.journal-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s4);
+  margin-bottom: var(--s3);
+}
+
+.journal-panel .summary {
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
 }
 
 /* Абрикос — «ждёт решения» и доплаты, перивинкль — «готово». */
