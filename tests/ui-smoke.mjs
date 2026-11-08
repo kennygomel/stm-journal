@@ -840,6 +840,22 @@ await check('админ-панель открывается и показыва�
   assert.match(text, /Пользователи/, 'пункт пользователей');
 });
 
+await check('пользователи: без наград, кнопки с зазором', async () => {
+  store.users = [
+    { id: 4, tgId: 323173181, name: 'Ignat Rychkov', username: 'ignatrychkov', status: 'approved', isAdmin: true, isOwner: true, prizes: ['🍌', '🐔'], createdAt: '2026-10-01T00:00:00.000Z' },
+  ];
+  setHash('#admin/users');
+  dispatchWindow('hashchange');
+  await flush(100);
+  const text = appNode().textContent;
+  assert.ok(!/🍌|🤡|🐔/.test(text), 'награды не выводятся в списке пользователей');
+  const actions = appNode().find((node) => node.classList.contains('actions'));
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync('src/styles.css', 'utf8');
+  assert.match(css, /\.actions \{[^}]*gap: var\(--s2\)/s, 'зазор между кнопками действий');
+  assert.match(css, /\.btn \{[^}]*padding: 0 var\(--s6\)/s, 'в кнопках больше воздуха по горизонтали');
+});
+
 await check('аватары: фото из Telegram и плейсхолдер с инициалами', async () => {
   store.users = [
     { id: 4, tgId: 323173181, name: 'Ignat Rychkov', username: 'ignatrychkov', status: 'approved', isAdmin: true, isOwner: true, createdAt: '2026-10-01T00:00:00.000Z' },
@@ -866,7 +882,16 @@ await check('аватары: фото из Telegram и плейсхолдер с
   ];
 });
 
-await check('рейтинг: неделя, номинации и призы', async () => {
+await check('рейтинг: скелетоны вместо текста загрузки', async () => {
+  setHash('#board');
+  dispatchWindow('hashchange');
+  const skeletons = appNode().findAll((node) => node.classList.contains('skeleton'));
+  assert.ok(skeletons.length >= 3, 'пока данные грузятся — скелетоны');
+  assert.ok(!/Считаем рейтинг/.test(appNode().textContent), 'нет текста «Считаем рейтинг»');
+  await flush(120);
+});
+
+await check('рейтинг: неделя, номинации и награды', async () => {
   setHash('#board');
   dispatchWindow('hashchange');
   await flush(150);
@@ -886,7 +911,7 @@ await check('рейтинг: неделя, номинации и призы', as
   assert.match(text, /🐔/, 'петух за третье');
   assert.match(text, /2\s?566/, 'доход победителя');
   assert.match(text, /Итоги прошлой недели/, 'итоги прошлой недели');
-  assert.match(text, /Мои призы/, 'личные призы');
+  assert.match(text, /Мои награды/, 'личные награды');
 
   // переключение номинации меняет список
   const chips = appNode().findAll((node) => node.classList.contains('chip'));
@@ -986,6 +1011,36 @@ await check('в подразделе вместо лого — стрелка н
   await flush(80);
   assert.equal(fakeLocation.hash, '#admin', 'возврат в панель');
   assert.ok(appNode().find((node) => node.classList.contains('brand-mark')), 'на верхнем уровне лого вернулось');
+});
+
+await check('форма рейса: комментарий и обязательные поля', async () => {
+  closeSheets();
+  setHash('#journal');
+  dispatchWindow('hashchange');
+  await flush(120);
+  const add = appNode().find((node) => node.classList.contains('btn-add'));
+  await add.click();
+  await flush(40);
+  const sheet = body.find((node) => node.classList.contains('sheet'));
+  assert.ok(sheet, 'шторка открыта');
+
+  const comment = sheet.find((node) => node.classList.contains('comment-field'));
+  assert.ok(comment, 'поле комментария есть');
+  assert.equal(
+    comment.placeholder || comment.getAttribute('placeholder'),
+    'Направление рейса или что-то ещё',
+    'плейсхолдер комментария',
+  );
+
+  // пустая форма не отправляется и просит заполнить поля
+  const save = sheet.findAll((node) => node.tagName.toLowerCase() === 'button').find((node) => /Добавить/.test(node.textContent));
+  await save.click();
+  await flush(40);
+  assert.match(byId.get('toast').textContent, /Укажите дату|Выберите заказчика|Укажите количество точек/, 'обязательные поля проверяются');
+
+  const inputs = sheet.findAll((node) => node.tagName.toLowerCase() === 'input');
+  assert.ok(inputs.some((node) => node.required === true || node.getAttribute('required') !== null), 'у полей есть required');
+  closeSheets();
 });
 
 await check('форма рейса: режимы «часами» и «начало/конец»', async () => {

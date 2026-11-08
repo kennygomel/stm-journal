@@ -11,7 +11,26 @@ import { card, clear, el, mount, placeholder, scrollFade, sectionTitle, toast } 
 import { bynSign, fmtDate, fmtNumber, moneyText } from '../format.js';
 import { haptic } from '../telegram.js';
 
-const PRIZE_TITLES = { 1: 'Банан', 2: 'Клоун', 3: 'Петух' };
+/** Скелетон экрана: чипы номинаций и строки рейтинга, пока нет данных. */
+function boardSkeleton() {
+  const chips = el('div', { class: 'chips board-chips' }, [
+    el('div', { class: 'skeleton skeleton-chip' }),
+    el('div', { class: 'skeleton skeleton-chip' }),
+    el('div', { class: 'skeleton skeleton-chip' }),
+    el('div', { class: 'skeleton skeleton-chip' }),
+  ]);
+  const rows = Array.from({ length: 3 }, () =>
+    el('div', { class: 'skeleton-row' }, [
+      el('div', { class: 'skeleton skeleton-avatar' }),
+      el('div', { class: 'skeleton-lines' }, [
+        el('div', { class: 'skeleton skeleton-line wide' }),
+        el('div', { class: 'skeleton skeleton-line' }),
+      ]),
+      el('div', { class: 'skeleton skeleton-value' }),
+    ]),
+  );
+  return el('div', {}, [chips, el('div', { class: 'card' }, rows)]);
+}
 
 /** Значение номинации в читаемом виде (доход — деньгами). */
 function valueNodes(category, value) {
@@ -119,19 +138,19 @@ export function leaderboardView(root) {
       root2,
       el('div', { class: 'view-hint' }, [
         `Неделя ${fmtDate(data.week.from)} — ${fmtDate(data.week.to)}. `,
-        'Призы: 🍌 — первое место, 🤡 — второе, 🐔 — третье. Итоги подводим в ночь с воскресенья на понедельник.',
+        'Награды: 🍌 — первое место, 🤡 — второе, 🐔 — третье. Итоги подводим в ночь с воскресенья на понедельник.',
       ]),
       chips,
       standings,
       result,
-      sectionTitle('Мои призы'),
+      sectionTitle('Мои награды'),
       myPrizes,
     );
   }
 
   function renderMyPrizes() {
     if (!data.myPrizes.length) {
-      mount(myPrizes, el('div', { class: 'view-hint' }, 'Пока без призов — всё впереди.'));
+      mount(myPrizes, el('div', { class: 'view-hint' }, 'Пока без наград — всё впереди.'));
       return;
     }
     const counts = data.myAwards.reduce((acc, row) => {
@@ -153,7 +172,6 @@ export function leaderboardView(root) {
   }
 
   async function load() {
-    mount(result, el('div', { class: 'muted', text: 'Считаем рейтинг…' }));
     try {
       data = await api.leaderboard();
       renderChips();
@@ -168,7 +186,7 @@ export function leaderboardView(root) {
 
   const body = el('div');
   mount(root, body);
-  mount(body, placeholder('Считаем рейтинг…', 'Немного магии — и увидим, кто впереди'));
+  mount(body, boardSkeleton());
 
   async function start() {
     await load();

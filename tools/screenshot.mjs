@@ -33,6 +33,8 @@ const OUT = flag('out', '/tmp/dscreen.png');
 const HEIGHT = Number(flag('height', 1000));
 const HIDE_NAV = has('hide-nav');
 const THEME = flag('theme', null);
+const WAIT = Number(flag('wait', 1200));
+const CLICK = flag('click', null);
 const PROFILE = flag('profile', '/tmp/dsh-shot-profile');
 
 const TYPES = {
@@ -211,7 +213,7 @@ await send('Network.setCacheDisabled', { cacheDisabled: true });
 await send('Fetch.enable', { patterns: [{ urlPattern: '*' }] });
 await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
 await send('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
-await new Promise((resolve) => setTimeout(resolve, 1200));
+await new Promise((resolve) => setTimeout(resolve, WAIT));
 if (SCREEN) {
   await send('Runtime.evaluate', { expression: `(location.hash = '#${SCREEN}', null)` });
   await new Promise((resolve) => setTimeout(resolve, 900));
@@ -219,6 +221,19 @@ if (SCREEN) {
 if (THEME) {
   await send('Runtime.evaluate', { expression: `(() => { document.documentElement.dataset.theme = '${THEME}'; localStorage.setItem('stm.theme', '${THEME}'); return document.documentElement.dataset.theme; })()` });
   await new Promise((resolve) => setTimeout(resolve, 250));
+}
+if (CLICK) {
+  await send('Runtime.evaluate', { expression: `(document.querySelector(${JSON.stringify(CLICK)})?.click(), null)` });
+  await new Promise((resolve) => setTimeout(resolve, 500));
+}
+if (has('splash')) {
+  await send('Runtime.evaluate', { expression: `(() => {
+    const node = document.createElement('div');
+    node.className = 'splash';
+    node.innerHTML = '<div class="splash-inner"><img class="splash-mark" src="/brand/stm-mark.svg" alt=""><div class="splash-title">Журнал рейсов</div><p class="splash-slogan">Время дела ладить, а не залупу гладить</p></div>';
+    document.body.append(node);
+  })()` });
+  await new Promise((resolve) => setTimeout(resolve, 300));
 }
 if (HIDE_NAV) {
   await send('Runtime.evaluate', { expression: `(document.querySelector('.bottom-nav')?.remove(), null)` });

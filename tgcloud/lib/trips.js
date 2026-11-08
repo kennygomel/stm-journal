@@ -16,6 +16,7 @@ export function toTripDto(row) {
     points: row.points,
     distance: row.distance,
     hours: row.hours,
+    comment: row.comment || null,
     income: row.income,
     daysBonus: row.daysBonus || 0,
     monthKmBonus: row.monthKmBonus || 0,
@@ -88,7 +89,9 @@ export function parseTripInput(input) {
   if (hours === null) {
     throw new EndpointError('Часы работы — целое число от 0 до 720.', { code: 'BAD_HOURS' });
   }
-  return { date, customerId, points, distance, hours };
+  // Комментарий необязателен; длину ограничиваем, чтобы не раздувать запись.
+  const comment = String(input?.comment ?? '').trim().slice(0, 500) || null;
+  return { date, customerId, points, distance, hours, comment };
 }
 
 async function loadCustomer(customerId) {
@@ -130,6 +133,7 @@ export async function createTrip(user, input) {
     points: parsed.points,
     distance: parsed.distance,
     hours: parsed.hours,
+    comment: parsed.comment,
     income: breakdown.income,
     ...ratesSnapshot(customer.name, rates),
   };
@@ -160,6 +164,7 @@ export async function updateTrip(user, input) {
       points: parsed.points,
       distance: parsed.distance,
       hours: parsed.hours,
+      comment: parsed.comment,
       income: breakdown.income,
       updatedAt: new Date(),
       ...ratesSnapshot(customer.name, rates),

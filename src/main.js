@@ -168,6 +168,7 @@ function screen(node) {
 }
 
 function fatal(title, message, { retry = false } = {}) {
+  hideSplash();
   const node = el('div', { class: 'empty' }, [
     el('div', { style: { fontSize: '34px', marginBottom: '8px' }, text: '📔' }),
     el('div', { style: { fontWeight: '700', fontSize: '17px', marginBottom: '6px' }, text: title }),
@@ -220,6 +221,14 @@ function setRoute(tab, sub, { render = true } = {}) {
     }
   }
   if (render) renderRoute();
+}
+
+/** Убирает заставку, когда первый экран уже нарисован. */
+function hideSplash() {
+  const splash = document.getElementById('splash');
+  if (!splash) return;
+  splash.classList.add('is-hidden');
+  setTimeout(() => splash.remove(), 400);
 }
 
 function currentHash() {
@@ -651,6 +660,10 @@ async function boot() {
   });
 
   await renderRoute();
+  hideSplash();
 }
+
+// Страховка: если загрузка зависла, заставка не должна держать экран вечно.
+setTimeout(hideSplash, 8000);
 
 boot();

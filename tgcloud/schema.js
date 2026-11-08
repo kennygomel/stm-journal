@@ -112,7 +112,9 @@ export const trips = table(
     customerName: text('customer_name').notNull(), // снимок имени для истории
     points: integer('points').notNull().default(0),
     distance: integer('distance').notNull().default(0), // км
-    hours: integer('hours').notNull().default(0), // часы работы
+    hours: integer('hours').notNull().default(0),
+    // Свободный комментарий водителя: направление рейса, детали, заметки.
+    comment: text('comment'), // часы работы
     income: integer('income').notNull().default(0), // коп.
     baseRate: integer('base_rate').notNull().default(0), // снимок тарифов
     pointsFree: integer('points_free').notNull().default(0),

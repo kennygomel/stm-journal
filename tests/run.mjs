@@ -669,6 +669,32 @@ await test('без периода сводка берёт текущий мес�
   assert.match(stats.period.to, /^\d{4}-\d{2}-\d{2}$/);
 });
 
+console.log('\nКомментарий к рейсу');
+
+await test('комментарий сохраняется и редактируется', async () => {
+  const { customers } = await endpoints.adminCustomers({ action: 'list' }, ctxFor(ADMIN_ID));
+  const customer = customers[0];
+  const created = await endpoints.createTrip(
+    { date: '2025-09-20', customerId: customer.id, points: 3, distance: 120, hours: 5, comment: '  Минск — Гомель, ночная  ' },
+    ctxFor(555),
+  );
+  assert.equal(created.trip.comment, 'Минск — Гомель, ночная', 'комментарий обрезан по краям');
+
+  const updated = await endpoints.updateTrip(
+    { id: created.trip.id, date: '2025-09-20', customerId: customer.id, points: 3, distance: 120, hours: 5, comment: 'Разгрузка в Гомеле' },
+    ctxFor(555),
+  );
+  assert.equal(updated.trip.comment, 'Разгрузка в Гомеле');
+
+  const cleared = await endpoints.updateTrip(
+    { id: created.trip.id, date: '2025-09-20', customerId: customer.id, points: 3, distance: 120, hours: 5, comment: '' },
+    ctxFor(555),
+  );
+  assert.equal(cleared.trip.comment, null, 'пустой комментарий — null');
+
+  await endpoints.deleteTrip({ id: created.trip.id }, ctxFor(555));
+});
+
 console.log('\nМесячная доплата за пробег');
 
 await test('доплата за пробег: 1 копейка за км свыше 10 000', async () => {

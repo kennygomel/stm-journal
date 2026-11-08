@@ -136,6 +136,14 @@ export function openTripForm(root, index, trip = null) {
   const hoursInput = input({ type: 'number', inputmode: 'numeric', min: 0, step: 1, value: trip?.hours ?? '' });
   const startInput = input({ type: 'time', value: '' });
   const endInput = input({ type: 'time', value: '' });
+  const commentInput = el('textarea', {
+    class: 'comment-field',
+    rows: 3,
+    placeholder: 'Направление рейса или что-то ещё',
+    maxlength: 500,
+  });
+  commentInput.value = trip?.comment || '';
+  for (const node of [dateInput, customerSelect, pointsInput, distanceInput, hoursInput]) node.required = true;
   // Плейсхолдер — действующий лимит из тарифов, а не захардкоженное число:
   // иначе после правки лимитов форма подсказывает устаревшие значения.
   for (const [node, limit] of [
@@ -223,6 +231,7 @@ export function openTripForm(root, index, trip = null) {
       field('Пробег, км', distanceInput),
     ]),
     el('div', { class: 'field-block' }, [el('div', { class: 'seg-label', text: 'Время рейса' }), switchRow, hoursPane, timesPane, computed]),
+    field('Комментарий', commentInput, 'Необязательно'),
     preview,
   ];
 
@@ -237,13 +246,20 @@ export function openTripForm(root, index, trip = null) {
         points: Number(pointsInput.value || 0),
         distance: Number(distanceInput.value || 0),
         hours: Number(hoursInput.value || 0),
+        comment: commentInput.value.trim(),
       };
-      if (!payload.date) {
-        toast('Укажите дату', { error: true });
-        return false;
-      }
-      if (!payload.customerId) {
-        toast('Выберите заказчика', { error: true });
+      const missing = [
+        [!payload.date, 'Укажите дату'],
+        [!payload.customerId, 'Выберите заказчика'],
+        [!String(pointsInput.value).trim(), 'Укажите количество точек'],
+        [!String(distanceInput.value).trim(), 'Укажите пробег'],
+        [
+          mode === 'times' ? hoursBetween(startInput.value, endInput.value) === null : !String(hoursInput.value).trim(),
+          mode === 'times' ? 'Укажите начало и конец рейса' : 'Укажите часы работы',
+        ],
+      ].find(([empty]) => empty);
+      if (missing) {
+        toast(missing[1], { error: true });
         return false;
       }
       try {
@@ -425,6 +441,7 @@ function tripRow(root, ctx, trip) {
       trip.daysBonus ? el('span', { class: 'trip-bonus' }, ['+', ...fmtMoney(trip.daysBonus), ' за дни']) : null,
       trip.monthKmBonus ? el('span', { class: 'trip-bonus' }, ['+', ...fmtMoney(trip.monthKmBonus), ' за пробег']) : null,
     ]),
+    trip.comment ? el('div', { class: 'trip-comment', text: trip.comment }) : null,
     el('div', { class: 'trip-actions' }, [
       button('Изменить', { className: 'btn ghost', onClick: () => openTripForm(root, ctx, trip) }),
       button('Удалить', {
