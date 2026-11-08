@@ -865,11 +865,10 @@ await check('пользователи: без наград, кнопки с за
   const css = readFileSync('src/styles.css', 'utf8');
   assert.match(css, /\.actions \{[^}]*gap: var\(--s2\)/s, 'зазор между кнопками действий');
   assert.match(css, /\.btn \{[^}]*padding: 0 var\(--s6\)/s, 'в кнопках больше воздуха по горизонтали');
-  assert.match(css, /\.trip-actions \.btn,\s*\n?\.actions \.btn \{[^}]*min-height: 40px/s, 'кнопки карточек ниже на 8 px');
   assert.match(
     css,
-    /\.trip-actions \.btn,\s*\n?\.actions \.btn \{[^}]*padding-left: calc\(var\(--s6\) \+ 4px\)/s,
-    'кнопки карточек шире на 4 px с каждой стороны',
+    /\.trip-actions \.btn,\s*\n?\.actions \.btn \{[^}]*padding: 4px 8px/s,
+    'кнопки карточек: 4 px сверху/снизу и 8 px слева/справа',
   );
 });
 
