@@ -75,6 +75,8 @@ const TRIP = {
   hours: 14,
   income: 256600,
   daysBonus: 15000,
+  comment: 'Минск — Гомель, ночная',
+  rates: RATES,
 };
 const HANDLERS = {
   me: {
@@ -221,6 +223,10 @@ if (SCREEN) {
 if (THEME) {
   await send('Runtime.evaluate', { expression: `(() => { document.documentElement.dataset.theme = '${THEME}'; localStorage.setItem('stm.theme', '${THEME}'); return document.documentElement.dataset.theme; })()` });
   await new Promise((resolve) => setTimeout(resolve, 250));
+}
+if (has('skip-splash')) {
+  await send('Runtime.evaluate', { expression: `(document.getElementById('splash')?.remove(), null)` });
+  await new Promise((resolve) => setTimeout(resolve, 100));
 }
 if (CLICK) {
   await send('Runtime.evaluate', { expression: `(document.querySelector(${JSON.stringify(CLICK)})?.click(), null)` });

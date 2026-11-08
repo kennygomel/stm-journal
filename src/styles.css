@@ -2438,3 +2438,13 @@ html[data-theme='dark'] .splash-mark {
   border-radius: var(--r-sm);
   flex-shrink: 0;
 }
+
+
+/* Кнопки в карточках рейса и пользователя: на 8 px ниже и на 8 px шире,
+   чтобы строка не выглядела тяжёлой. */
+.trip-actions .btn,
+.actions .btn {
+  min-height: 40px;
+  padding-left: calc(var(--s6) + 4px);
+  padding-right: calc(var(--s6) + 4px);
+}
