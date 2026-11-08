@@ -867,8 +867,8 @@ await check('пользователи: без наград, кнопки с за
   assert.match(css, /\.btn \{[^}]*padding: 0 var\(--s6\)/s, 'в кнопках больше воздуха по горизонтали');
   assert.match(
     css,
-    /\.trip-actions \.btn,\s*\n?\.actions \.btn \{[^}]*padding: 4px 8px/s,
-    'кнопки карточек: 4 px сверху/снизу и 8 px слева/справа',
+    /\.trip-actions \.btn,\s*\n?\.actions \.btn \{[^}]*padding: 8px 16px/s,
+    'кнопки карточек: 8 px сверху/снизу и 16 px слева/справа',
   );
 });
 

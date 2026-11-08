@@ -2440,10 +2440,10 @@ html[data-theme='dark'] .splash-mark {
 }
 
 
-/* Кнопки в карточках рейса и пользователя: компактные поля —
-   4 px сверху и снизу, 8 px слева и справа. */
+/* Кнопки в карточках рейса и пользователя: 8 px сверху и снизу,
+   16 px слева и справа. */
 .trip-actions .btn,
 .actions .btn {
   min-height: 0;
-  padding: 4px 8px;
+  padding: 8px 16px;
 }
