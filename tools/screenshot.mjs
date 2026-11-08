@@ -244,6 +244,18 @@ if (has('splash')) {
 if (HIDE_NAV) {
   await send('Runtime.evaluate', { expression: `(document.querySelector('.bottom-nav')?.remove(), null)` });
 }
+if (has('debug-loader')) {
+  const info = await send('Runtime.evaluate', { expression: `(() => {
+    const node = document.querySelector('.splash-loader');
+    if (!node) return { found: false };
+    const rect = node.getBoundingClientRect();
+    const cs = getComputedStyle(node);
+    const span = node.firstElementChild;
+    const sc = span ? getComputedStyle(span) : null;
+    return { found: true, rect: { x: rect.x, y: rect.y, w: rect.width, h: rect.height }, bg: cs.backgroundColor, display: cs.display, spanBg: sc?.backgroundColor, spanTransform: sc?.transform };
+  })()`, returnByValue: true });
+  console.log('LOADER:', JSON.stringify(info.result.value));
+}
 const shot = await send('Page.captureScreenshot', {
   format: 'png',
   captureBeyondViewport: true,

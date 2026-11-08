@@ -1189,9 +1189,9 @@ html[data-theme='dark'] .brand-mark {
 
 .trip-actions {
   display: flex;
-  gap: var(--s1);
+  flex-wrap: wrap;
+  gap: var(--s2);
   margin-top: var(--s2);
-  margin-left: calc(var(--s2) * -1);
 }
 
 /* --------------------------------------------------------------- списки */
@@ -2446,4 +2446,44 @@ html[data-theme='dark'] .splash-mark {
 .actions .btn {
   min-height: 0;
   padding: 8px 16px;
+}
+
+/* Индикатор загрузки на заставке: бегущий сегмент по тонкой дорожке.
+   Анимируется только transform — без дёрганья раскладки. */
+.splash-loader {
+  position: relative;
+  width: 132px;
+  height: 4px;
+  margin-top: var(--s4);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--accent) 24%, transparent);
+  overflow: hidden;
+}
+
+.splash-loader span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 42%;
+  border-radius: inherit;
+  background: var(--accent);
+  box-shadow: 0 0 10px color-mix(in oklab, var(--accent) 55%, transparent);
+  /* Сегмент ходит туда-обратно по дорожке и не пропадает за краем. */
+  animation: splash-loader 1.1s var(--ease) infinite alternate;
+}
+
+@keyframes splash-loader {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(138%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-loader span {
+    animation: none;
+    width: 100%;
+    opacity: 0.55;
+  }
 }

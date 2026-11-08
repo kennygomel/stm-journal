@@ -849,6 +849,12 @@ await check('заставка: логотип, лозунг и минимум 3 
   assert.match(html, /Время дела ладить/, 'текст лозунга');
   assert.match(main, /SPLASH_MIN_MS = 3000/, 'минимум 3 секунды');
   assert.match(main, /Math\.max\(0, SPLASH_MIN_MS -/, 'ждать остаток до трёх секунд');
+  assert.match(html, /splash-loader/, 'индикатор загрузки под слоганом');
+  const css = readFileSync('src/styles.css', 'utf8');
+  assert.match(css, /@keyframes splash-loader/, 'анимация индикатора');
+  assert.match(css, /\.splash-loader span \{[^}]*animation: splash-loader/s, 'сегмент бежит по дорожке');
+  assert.match(css, /prefers-reduced-motion[\s\S]*?\.splash-loader span \{[^}]*animation: none/s, 'без анимации при reduced-motion');
+  assert.match(css, /\.trip-actions \{[^}]*gap: var\(--s2\)/s, 'зазор между кнопками карточки — 8 px');
 });
 
 await check('пользователи: без наград, кнопки с зазором', async () => {
