@@ -840,6 +840,17 @@ await check('админ-панель открывается и показыва�
   assert.match(text, /Пользователи/, 'пункт пользователей');
 });
 
+await check('заставка: логотип, лозунг и минимум 3 секунды', async () => {
+  const { readFileSync } = await import('node:fs');
+  const html = readFileSync('index.html', 'utf8');
+  const main = readFileSync('src/main.js', 'utf8');
+  assert.match(html, /id="splash"/, 'заставка в разметке');
+  assert.match(html, /splash-slogan/, 'лозунг на заставке');
+  assert.match(html, /Время дела ладить/, 'текст лозунга');
+  assert.match(main, /SPLASH_MIN_MS = 3000/, 'минимум 3 секунды');
+  assert.match(main, /Math\.max\(0, SPLASH_MIN_MS -/, 'ждать остаток до трёх секунд');
+});
+
 await check('пользователи: без наград, кнопки с зазором', async () => {
   store.users = [
     { id: 4, tgId: 323173181, name: 'Ignat Rychkov', username: 'ignatrychkov', status: 'approved', isAdmin: true, isOwner: true, prizes: ['🍌', '🐔'], createdAt: '2026-10-01T00:00:00.000Z' },

@@ -223,12 +223,26 @@ function setRoute(tab, sub, { render = true } = {}) {
   if (render) renderRoute();
 }
 
-/** Убирает заставку, когда первый экран уже нарисован. */
+/** Минимальное время показа заставки: экран не должен мелькать. */
+const SPLASH_MIN_MS = 3000;
+const SPLASH_STARTED_AT = Date.now();
+let splashHideScheduled = false;
+
+/**
+ * Убирает заставку, когда первый экран уже нарисован, но не раньше
+ * SPLASH_MIN_MS с момента старта приложения.
+ */
 function hideSplash() {
+  if (splashHideScheduled) return;
+  splashHideScheduled = true;
   const splash = document.getElementById('splash');
   if (!splash) return;
-  splash.classList.add('is-hidden');
-  setTimeout(() => splash.remove(), 400);
+
+  const wait = Math.max(0, SPLASH_MIN_MS - (Date.now() - SPLASH_STARTED_AT));
+  setTimeout(() => {
+    splash.classList.add('is-hidden');
+    setTimeout(() => splash.remove(), 400);
+  }, wait);
 }
 
 function currentHash() {
