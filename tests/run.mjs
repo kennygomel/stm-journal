@@ -525,6 +525,69 @@ await test('пересчёт требует период', async () => {
   });
 });
 
+await test('пересчёт не трогает записи, у которых доплата — нормальное состояние', async () => {
+  const { customers } = await endpoints.adminCustomers({ action: 'list' }, ctxFor(ADMIN_ID));
+  const customer = customers.find((row) => row.name === 'Без тарифа');
+  const created = [];
+  // 23 разных даты → доплата за дни ложится на последнюю запись февраля
+  for (let day = 1; day <= 23; day += 1) {
+    const result = await endpoints.createTrip(
+      { date: `2025-02-${String(day).padStart(2, '0')}`, customerId: customer.id, points: 1, distance: 100, hours: 8 },
+      ctxFor(555),
+    );
+    created.push(result.trip.id);
+  }
+
+  const preview = await endpoints.adminRecalc({ from: '2025-02-01', to: '2025-02-28' }, ctxFor(ADMIN_ID));
+  assert.equal(preview.total, 23);
+  assert.equal(preview.changed, 0, 'пересчитывать нечего: доплата не признак устаревшей записи');
+  assert.equal(preview.bonusBefore, 2500, 'доплата месяца в сумме');
+  assert.equal(preview.bonusAfter, 2500);
+  assert.deepEqual(preview.items, [], 'список изменений пуст');
+
+  const applied = await endpoints.adminRecalc({ from: '2025-02-01', to: '2025-02-28', apply: true }, ctxFor(ADMIN_ID));
+  assert.equal(applied.changed, 0, 'кнопка сохранения не находит работы');
+
+  for (const id of created) await endpoints.deleteTrip({ id }, ctxFor(555));
+});
+
+await test('пересчёт возвращает доплату месяца к текущей таблице', async () => {
+  const { eq } = await import('sdk/db');
+  const { customers } = await endpoints.adminCustomers({ action: 'list' }, ctxFor(ADMIN_ID));
+  const customer = customers.find((row) => row.name === 'Без тарифа');
+  const created = [];
+  for (let day = 1; day <= 23; day += 1) {
+    const result = await endpoints.createTrip(
+      { date: `2025-02-${String(day).padStart(2, '0')}`, customerId: customer.id, points: 1, distance: 100, hours: 8 },
+      ctxFor(555),
+    );
+    created.push(result.trip.id);
+  }
+
+  // портим доплату, как это бывает у записей, посчитанных старой версией
+  const february = (await db.select().from(schema.trips).all()).filter((row) => row.tripDate.startsWith('2025-02'));
+  const carrier = february.find((row) => row.daysBonus > 0);
+  assert.ok(carrier, 'доплата стоит на одной из записей');
+  await db.update(schema.trips).set({ daysBonus: 0 }).where(eq(schema.trips.id, carrier.id)).run();
+
+  const preview = await endpoints.adminRecalc({ from: '2025-02-01', to: '2025-02-28' }, ctxFor(ADMIN_ID));
+  assert.equal(preview.changed, 1, 'видна ровно одна запись');
+  assert.equal(preview.items[0].delta, 0, 'доход рейса не меняется');
+  assert.equal(preview.items[0].bonusBefore, 0);
+  assert.equal(preview.items[0].bonusAfter, 2500);
+  assert.equal(preview.bonusDelta, 2500);
+
+  const applied = await endpoints.adminRecalc({ from: '2025-02-01', to: '2025-02-28', apply: true }, ctxFor(ADMIN_ID));
+  assert.equal(applied.changed, 1);
+  const fixed = (await db.select().from(schema.trips).all()).find((row) => row.id === carrier.id);
+  assert.equal(fixed.daysBonus, 2500, 'доплата восстановлена в базе');
+
+  const again = await endpoints.adminRecalc({ from: '2025-02-01', to: '2025-02-28' }, ctxFor(ADMIN_ID));
+  assert.equal(again.changed, 0, 'после применения пересчёт чист');
+
+  for (const id of created) await endpoints.deleteTrip({ id }, ctxFor(555));
+});
+
 console.log('\nДоплата за дни');
 
 await test('меньше 25 рабочих дней — доплаты нет', async () => {

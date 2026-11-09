@@ -1687,7 +1687,10 @@ html[data-theme='dark'] .brand-mark {
 
 /* ------------------------------------------------------------- дашборд */
 
-/* Сводка: карточки 2×2 на телефоне, 4 в ряд на широком экране. */
+/* Сводка: карточки 2×2 на телефоне, 4 в ряд на широком экране.
+   Тот же блок использует пересчёт записей — поэтому стили общие, а не
+   привязаны к контейнеру дашборда. */
+.stats,
 .dashboard > .stats {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1701,7 +1704,7 @@ html[data-theme='dark'] .brand-mark {
   }
 }
 
-.dashboard .stat {
+.stat {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1712,14 +1715,14 @@ html[data-theme='dark'] .brand-mark {
   background: var(--surface);
 }
 
-.dashboard .stat .label {
+.stat .label {
   font-size: 12px;
   font-weight: 600;
   color: var(--hint);
   text-transform: none;
 }
 
-.dashboard .stat .value {
+.stat .value {
   font-size: 24px;
   font-weight: 700;
   line-height: 1.15;

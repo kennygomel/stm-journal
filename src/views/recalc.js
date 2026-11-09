@@ -64,26 +64,65 @@ export function recalcView(root, ctx) {
     },
   });
 
+  /** Знак разницы отдельно от суммы — чтобы не собирать это в каждом месте. */
+  function signedMoney(value) {
+    return [value > 0 ? '+' : '−', ...fmtMoney(Math.abs(value))];
+  }
+
+  /** Плитки «проверено / изменится»: та же сетка, что на дашборде админки. */
+  function statsBlock(data, applied = false) {
+    const change = (data.delta || 0) + (data.bonusDelta || 0);
+    return el('div', { class: 'stats' }, [
+      el('div', { class: 'stat' }, [
+        el('div', { class: 'label', text: 'Проверено записей' }),
+        el('div', { class: 'value', text: fmtNumber(data.total) }),
+        el('div', { class: 'stat-foot', text: describeRange(data) }),
+      ]),
+      el('div', { class: 'stat' }, [
+        el('div', { class: 'label', text: applied ? 'Пересчитано' : 'Изменится' }),
+        el('div', { class: 'value', text: fmtNumber(data.changed) }),
+        change
+          ? el('div', { class: `stat-foot delta ${change > 0 ? 'up' : 'down'}` }, signedMoney(change))
+          : el('div', { class: 'stat-foot', text: 'суммы не меняются' }),
+      ]),
+    ]);
+  }
+
+  /** Карточка баланса: доход рейсов отдельно, доплаты — отдельной строкой. */
+  function balanceCard(data) {
+    return card([
+      el('div', { class: 'muted', text: `Баланс за ${describeRange(data)}` }),
+      el('div', { class: 'summary-amount' }, [
+        el('span', {}, fmtMoney(data.incomeBefore)),
+        el('span', { class: 'muted' }, ' → '),
+        ...fmtMoney(data.incomeAfter),
+      ]),
+      data.delta === 0
+        ? el('div', { class: 'delta-line', text: 'доход рейсов не меняется' })
+        : el('div', { class: `delta-line ${data.delta > 0 ? 'up' : 'down'}` }, [
+            data.delta > 0 ? 'рейсы принесут больше на ' : 'рейсы принесут меньше на ',
+            ...fmtMoney(Math.abs(data.delta)),
+          ]),
+      data.bonusDelta
+        ? el('div', { class: 'delta-line' }, [
+            el('span', { class: 'muted', text: 'доплаты: ' }),
+            ...fmtMoney(data.bonusBefore),
+            el('span', { class: 'muted', text: ' → ' }),
+            ...fmtMoney(data.bonusAfter),
+          ])
+        : null,
+    ]);
+  }
+
   function renderPreview(data) {
     if (!data.total) {
       mount(result, placeholder('Записей нет', 'В этом периоде никто не вносил рейсы — выберите другой период'));
       return;
     }
-    if (!data.changed) {
-      clear(result).append(
-        card([
-          el('div', { class: 'trip-name', text: 'Пересчёт не нужен' }),
-          el('div', {
-            class: 'muted',
-            text: `Проверено ${fmtNumber(data.total)} ${plural(data.total, 'запись', 'записи', 'записей')} за ${describeRange(data)} — всё уже посчитано по действующим тарифам.`,
-          }),
-        ]),
-      );
-      return;
-    }
 
-    const rows = data.items.map((item) =>
-      el('div', { class: 'list-row' }, [
+    const rows = data.items.map((item) => {
+      const total = item.delta + (item.bonusDelta || 0);
+      return el('div', { class: 'list-row' }, [
         el('div', {}, [
           el('div', { text: `${fmtDate(item.date)} · ${item.customerName}` }),
           el('div', { class: 'muted' }, [
@@ -92,13 +131,17 @@ export function recalcView(root, ctx) {
             ...fmtMoney(item.incomeAfter),
             item.customerMissing ? ' · заказчик удалён' : '',
           ]),
+          // Доплата меняется отдельно от дохода рейса — её видно своей строкой,
+          // иначе «изменится, но 0 ₽» выглядит как ошибка.
+          item.bonusDelta
+            ? el('div', { class: 'muted' }, ['доплаты ', ...fmtMoney(item.bonusBefore), ' → ', ...fmtMoney(item.bonusAfter)])
+            : null,
         ]),
-        el('div', { class: `amount delta ${item.delta > 0 ? 'up' : 'down'}` }, [
-          item.delta > 0 ? '+' : '−',
-          ...fmtMoney(Math.abs(item.delta)),
-        ]),
-      ]),
-    );
+        total
+          ? el('div', { class: `amount delta ${total > 0 ? 'up' : 'down'}` }, signedMoney(total))
+          : el('div', { class: 'amount muted' }, fmtMoney(0)),
+      ]);
+    });
 
     const users = data.users
       .filter((row) => row.changed > 0)
@@ -108,36 +151,29 @@ export function recalcView(root, ctx) {
             el('div', { text: `Журнал #${row.userId}` }),
             el('div', { class: 'muted', text: `${fmtNumber(row.changed)} из ${fmtNumber(row.total)} записей` }),
           ]),
-          el('div', { class: `amount delta ${row.delta > 0 ? 'up' : 'down'}` }, [
-            row.delta > 0 ? '+' : '−',
-            ...fmtMoney(Math.abs(row.delta)),
-          ]),
+          row.delta
+            ? el('div', { class: `amount delta ${row.delta > 0 ? 'up' : 'down'}` }, signedMoney(row.delta))
+            : el('div', { class: 'amount muted', text: 'доплаты' }),
         ]),
       );
 
+    if (!data.changed) {
+      clear(result).append(
+        statsBlock(data),
+        card([
+          el('div', { class: 'trip-name', text: 'Пересчёт не нужен' }),
+          el('div', {
+            class: 'muted',
+            text: `Все записи за ${describeRange(data)} уже посчитаны по действующим тарифам — переписывать нечего.`,
+          }),
+        ]),
+      );
+      return;
+    }
+
     clear(result).append(
-      el('div', { class: 'stats' }, [
-        el('div', { class: 'stat' }, [
-          el('div', { class: 'label', text: 'Проверено записей' }),
-          el('div', { class: 'value', text: fmtNumber(data.total) }),
-        ]),
-        el('div', { class: 'stat' }, [
-          el('div', { class: 'label', text: 'Изменится' }),
-          el('div', { class: 'value', text: fmtNumber(data.changed) }),
-        ]),
-      ]),
-      card([
-        el('div', { class: 'muted', text: `Баланс за ${describeRange(data)}` }),
-        el('div', { class: 'summary-amount' }, [
-          el('span', {}, fmtMoney(data.incomeBefore)),
-          el('span', { class: 'muted' }, ' → '),
-          ...fmtMoney(data.incomeAfter),
-        ]),
-        el('div', { class: `delta-line ${data.delta >= 0 ? 'up' : 'down'}` }, [
-          data.delta >= 0 ? 'станет больше на ' : 'станет меньше на ',
-          ...fmtMoney(Math.abs(data.delta)),
-        ]),
-      ]),
+      statsBlock(data),
+      balanceCard(data),
       users.length ? sectionTitle('По журналам') : null,
       users.length ? card(users) : null,
       sectionTitle(`Записи · ${fmtNumber(data.changed)}`),
@@ -147,6 +183,28 @@ export function recalcView(root, ctx) {
         onClick: () => apply(),
       }),
       el('div', { class: 'view-hint' }, 'Действие меняет суммы уже сохранённых записей и применяется ко всем журналам за выбранный период.'),
+    );
+  }
+
+  /** Итог применения: те же плитки, но без кнопки — повторять нечего. */
+  function renderApplied(data) {
+    const change = (data.delta || 0) + (data.bonusDelta || 0);
+    clear(result).append(
+      statsBlock(data, true),
+      card([
+        el('div', { class: 'trip-name', text: 'Готово' }),
+        el('div', {
+          class: 'muted',
+          text: `Пересчитано ${fmtNumber(data.changed)} ${plural(data.changed, 'запись', 'записи', 'записей')} за ${describeRange(data)}.`,
+        }),
+        change
+          ? el('div', { class: `delta-line ${change > 0 ? 'up' : 'down'}` }, [
+              change > 0 ? 'суммы выросли на ' : 'суммы уменьшились на ',
+              ...fmtMoney(Math.abs(change)),
+            ])
+          : el('div', { class: 'delta-line', text: 'суммы не изменились — обновились только тарифы в записях' }),
+      ]),
+      el('div', { class: 'view-hint' }, 'Нажмите «Проверить», чтобы посмотреть период заново.'),
     );
   }
 
@@ -160,8 +218,8 @@ export function recalcView(root, ctx) {
       const applied = await api.recalc({ from: range.from, to: range.to, apply: true });
       haptic('success');
       toast(`Пересчитано: ${fmtNumber(applied.changed)}`);
-      preview = applied;
-      renderPreview(applied);
+      preview = null;
+      renderApplied(applied);
     } catch (error) {
       toast(error.message, { error: true });
     }

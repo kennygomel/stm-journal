@@ -209,6 +209,7 @@ function resetDocument() {
 const callLog = [];
 let lastRatePayload = null;
 let lastRecalc = null;
+let recalcClean = false;
 let initData = { user: { id: 323173181, first_name: 'Ignat', username: 'owner' } };
 const windowListeners = new Map();
 
@@ -390,6 +391,16 @@ const handlers = {
   }),
   adminRecalc: async (payload = {}) => {
     lastRecalc = payload;
+    if (recalcClean) {
+      // всё уже посчитано: платформа не находит изменений
+      return {
+        from: payload.from, to: payload.to, applied: Boolean(payload.apply), total: 3, changed: 0,
+        incomeBefore: 254600, incomeAfter: 254600, delta: 0,
+        bonusBefore: 2500, bonusAfter: 2500, bonusDelta: 0,
+        users: [{ userId: 4, total: 2, changed: 0, delta: 0 }, { userId: 5, total: 1, changed: 0, delta: 0 }],
+        items: [],
+      };
+    }
     if (payload.apply) {
       // имитируем применение: суммы записей становятся «новыми»
       for (const trip of store.trips) trip.income = 260000;
@@ -1262,6 +1273,28 @@ await check('экран пересчёта: предпросмотр и прим
   assert.equal(lastRecalc.apply, true, 'применение ушло на сервер');
   // тост живёт вне #app, поэтому проверяем его отдельный узел
   assert.match(byId.get('toast').textContent, /Пересчитано/, 'тост о результате');
+});
+
+await check('пересчёт без изменений не предлагает сохранять', async () => {
+  recalcClean = true;
+  setHash('#admin/recalc');
+  dispatchWindow('hashchange');
+  await flush(60);
+
+  const run = appNode()
+    .findAll((node) => node.tagName.toLowerCase() === 'button')
+    .find((node) => /Проверить/.test(node.textContent));
+  await run.click();
+  await flush(60);
+
+  const text = appNode().textContent;
+  assert.match(text, /Проверено записей/, 'плитки сводки на месте');
+  assert.match(text, /Пересчёт не нужен/, 'объяснено, что менять нечего');
+  assert.ok(!/Пересчитать и сохранить/.test(text), 'кнопки сохранения нет');
+  assert.match(text, /Изменится\s*0/, 'изменений не обещано');
+  assert.match(text, /суммы не меняются/, 'подпись про нулевую разницу');
+
+  recalcClean = false;
 });
 
 await check('пересчёт доступен только владельцу', async () => {

@@ -368,6 +368,67 @@ async function syncMonthBonusesInRange(userId, range) {
   for (const month of months) await syncMonthBonuses(userId, month);
 }
 
+/** Ключ «журнал + месяц»: доплаты считаются в разрезе месяца и водителя. */
+const bonusKey = (userId, month) => `${userId}|${month}`;
+
+/** Последний день месяца «YYYY-MM» — верхняя граница текстового диапазона дат. */
+function monthEnd(month) {
+  const [year, index] = month.split('-').map(Number);
+  const day = new Date(Date.UTC(year, index, 0)).getUTCDate();
+  return `${month}-${String(day).padStart(2, '0')}`;
+}
+
+/**
+ * Ожидаемые месячные доплаты по полному составу месяца. Доплата живёт ровно на
+ * одной записи — последней в месяце журнала (так её ставит syncMonthBonuses),
+ * поэтому возвращаем и id этой записи.
+ * @param {Array} rows записи журналов за целые месяцы
+ * @returns {Map<string, {lastId: number, daysBonus: number, monthKmBonus: number}>}
+ */
+function expectedBonuses(rows) {
+  const buckets = new Map();
+  for (const row of rows) {
+    const month = monthOf(row.tripDate);
+    if (!month) continue;
+    const key = bonusKey(row.userId, month);
+    const bucket = buckets.get(key) || { dates: new Set(), distance: 0, lastDate: '', lastId: 0 };
+    bucket.dates.add(row.tripDate);
+    bucket.distance += row.distance || 0;
+    if (row.tripDate > bucket.lastDate || (row.tripDate === bucket.lastDate && row.id > bucket.lastId)) {
+      bucket.lastDate = row.tripDate;
+      bucket.lastId = row.id;
+    }
+    buckets.set(key, bucket);
+  }
+  return new Map(
+    [...buckets].map(([key, bucket]) => [
+      key,
+      {
+        lastId: bucket.lastId,
+        daysBonus: daysBonusFor(bucket.dates.size),
+        monthKmBonus: monthKmBonusFor(bucket.distance),
+      },
+    ]),
+  );
+}
+
+/** Все записи журналов за месяцы, которые задевают даты периода. */
+async function loadMonthRows(userIds, dates) {
+  const months = [...new Set(dates.map(monthOf).filter(Boolean))].sort();
+  if (!userIds.length || !months.length) return [];
+  return db
+    .select()
+    .from(trips)
+    .where(
+      and(
+        inArray(trips.userId, userIds),
+        gte(trips.tripDate, `${months[0]}-01`),
+        lte(trips.tripDate, monthEnd(months[months.length - 1])),
+      ),
+    )
+    .all();
+}
+
 /**
  * Пересчитывает записи за период по действующим тарифам.
  *
@@ -394,6 +455,11 @@ export async function recalculateTrips(range, { userId = null, apply = false } =
     : [];
   const byId = new Map(customerRows.map((row) => [row.id, row]));
 
+  // Период может быть куском месяца, а доплаты считаются по всему месяцу —
+  // поэтому ожидаемые суммы берём по полному составу задетых месяцев.
+  const monthRows = await loadMonthRows([...new Set(rows.map((row) => row.userId))], rows.map((row) => row.tripDate));
+  const bonuses = expectedBonuses(monthRows.length ? monthRows : rows);
+
   /** Новый расчёт для записи: ставки заказчика (или снимок) + текущие доплаты. */
   const recompute = (row) => {
     const customer = byId.get(row.customerId);
@@ -417,18 +483,32 @@ export async function recalculateTrips(range, { userId = null, apply = false } =
   const users = new Map();
   let incomeBefore = 0;
   let incomeAfter = 0;
+  let bonusBefore = 0;
+  let bonusAfter = 0;
 
   for (const row of rows) {
     const { customer, rates, breakdown } = recompute(row);
     incomeBefore += row.income;
     incomeAfter += breakdown.income;
 
+    // Доплаты месяца: они стоят ровно на последней записи месяца, остальные
+    // должны быть нулевыми — сравниваем с текущей таблицей, а не с нулём.
+    const monthBonus = bonuses.get(bonusKey(row.userId, monthOf(row.tripDate)));
+    const isCarrier = Boolean(monthBonus) && monthBonus.lastId === row.id;
+    const daysAfter = isCarrier ? monthBonus.daysBonus : 0;
+    const kmAfter = isCarrier ? monthBonus.monthKmBonus : 0;
+    const daysBefore = row.daysBonus || 0;
+    const kmBefore = row.monthKmBonus || 0;
+    bonusBefore += daysBefore + kmBefore;
+    bonusAfter += daysAfter + kmAfter;
+
     const bucket = users.get(row.userId) || { userId: row.userId, total: 0, changed: 0, delta: 0 };
     bucket.total += 1;
 
     const isChanged =
       breakdown.income !== row.income ||
-      (row.daysBonus || 0) !== 0 ||
+      daysBefore !== daysAfter ||
+      kmBefore !== kmAfter ||
       rates.baseRate !== row.baseRate ||
       rates.pointsFree !== row.pointsFree ||
       rates.pointRate !== row.pointRate ||
@@ -444,8 +524,12 @@ export async function recalculateTrips(range, { userId = null, apply = false } =
         row,
         customer,
         rates,
+        daysAfter,
+        kmAfter,
         incomeAfter: breakdown.income,
         delta: breakdown.income - row.income,
+        bonusBefore: daysBefore + kmBefore,
+        bonusAfter: daysAfter + kmAfter,
       });
     }
     users.set(row.userId, bucket);
@@ -458,6 +542,10 @@ export async function recalculateTrips(range, { userId = null, apply = false } =
           .update(trips)
           .set({
             income: item.incomeAfter,
+            // Доплаты пишем те же, что показал предпросмотр, — иначе запись
+            // навсегда останется «изменённой» при нулевой разнице.
+            daysBonus: item.daysAfter,
+            monthKmBonus: item.kmAfter,
             ...ratesSnapshot(item.customer ? item.customer.name : item.row.customerName, item.rates),
             updatedAt: new Date(),
           })
@@ -482,6 +570,9 @@ export async function recalculateTrips(range, { userId = null, apply = false } =
     incomeBefore,
     incomeAfter,
     delta: incomeAfter - incomeBefore,
+    bonusBefore,
+    bonusAfter,
+    bonusDelta: bonusAfter - bonusBefore,
     users: [...users.values()].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)),
     items: changed
       .map((item) => ({
@@ -493,6 +584,9 @@ export async function recalculateTrips(range, { userId = null, apply = false } =
         incomeBefore: item.row.income,
         incomeAfter: item.incomeAfter,
         delta: item.delta,
+        bonusBefore: item.bonusBefore,
+        bonusAfter: item.bonusAfter,
+        bonusDelta: item.bonusAfter - item.bonusBefore,
       }))
       .sort((a, b) => (a.date < b.date ? 1 : -1))
       .slice(0, 200),
